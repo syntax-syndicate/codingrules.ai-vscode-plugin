@@ -80,9 +80,12 @@ export class SupabaseService {
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
-            // Search by title/content
+            // Search by title/content/tags
             if (query) {
-                queryBuilder = queryBuilder.or(`title.ilike.%${query}%,content.ilike.%${query}%`);
+                // Create a more comprehensive search query that includes title, content, and tags
+                queryBuilder = queryBuilder.or(
+                    `title.ilike.%${query}%,content.ilike.%${query}%,rule_tags.tags.name.ilike.%${query}%`
+                );
             }
 
             // Filter by tool
@@ -159,6 +162,41 @@ export class SupabaseService {
             return data || [];
         } catch (error) {
             console.error('Error fetching tools:', error);
+            return this.handleError(error);
+        }
+    }
+
+    /**
+     * Get top upvoted rules
+     */
+    public async getTopUpvotedRules(limit: number = 20): Promise<RuleListResponse> {
+        try {
+            console.log('Fetching top upvoted rules');
+
+            const queryBuilder = this.client
+                .from('rules')
+                .select('*, rule_tags!inner(tag_id, tags!inner(*))', { count: 'exact' })
+                .eq('is_archived', false)
+                .eq('is_active', true)
+                .eq('is_private', false)
+                .order('upvote_count', { ascending: false })
+                .limit(limit);
+
+            const { data, error, count } = await queryBuilder;
+
+            if (error) {
+                console.error('Supabase returned error:', error);
+                throw error;
+            }
+
+            console.log(`Found ${count || 0} top upvoted rules`);
+
+            return {
+                rules: data ? data.map(this.transformRuleData) : [],
+                count: count || 0,
+            };
+        } catch (error) {
+            console.error('Error fetching top upvoted rules:', error);
             return this.handleError(error);
         }
     }

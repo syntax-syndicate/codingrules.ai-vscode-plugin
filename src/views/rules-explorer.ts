@@ -65,6 +65,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
     private supabaseService!: SupabaseService;
     private rules: Rule[] = [];
+    private topUpvotedRules: Rule[] = [];
     private tags: Tag[] = [];
     private tools: Tool[] = [];
     private isLoading = false;
@@ -166,13 +167,15 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             this.refresh();
 
             // Fetch data in parallel
-            const [rulesResult, tags, tools] = await Promise.all([
+            const [rulesResult, topUpvotedResult, tags, tools] = await Promise.all([
                 this.supabaseService.searchRules({ limit: 20 }),
+                this.supabaseService.getTopUpvotedRules(20),
                 this.supabaseService.getTags(),
                 this.supabaseService.getTools(),
             ]);
 
             this.rules = rulesResult.rules;
+            this.topUpvotedRules = topUpvotedResult.rules;
             this.tags = tags;
             this.tools = tools;
 
@@ -230,6 +233,11 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 ),
                 new RuleExplorerItem(
                     RuleExplorerItemType.CATEGORY,
+                    'Most Upvoted Rules',
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                ),
+                new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
                     'Browse by Tags',
                     vscode.TreeItemCollapsibleState.Collapsed,
                 ),
@@ -245,6 +253,17 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         switch (element.label) {
             case 'Recent Rules':
                 return this.rules.map(
+                    (rule) =>
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            rule.title,
+                            vscode.TreeItemCollapsibleState.None,
+                            rule,
+                        ),
+                );
+                
+            case 'Most Upvoted Rules':
+                return this.topUpvotedRules.map(
                     (rule) =>
                         new RuleExplorerItem(
                             RuleExplorerItemType.RULE,
