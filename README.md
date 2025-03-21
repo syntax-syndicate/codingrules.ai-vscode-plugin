@@ -1,71 +1,84 @@
-# codingrules-ai README
+# CodingRules.ai VS Code Extension
 
-This is the README for your extension "codingrules-ai". After writing up a brief description, we recommend including the following sections.
+This extension allows you to search, browse, and download rules from [CodingRules.ai](https://codingrules.ai) directly within VS Code.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Browse Rules**: Use the sidebar view to browse recently added rules, or explore by tags and tools
+- **Search Rules**: Search for rules by title, content, or tags
+- **Download Rules**: Download rules in formats compatible with popular AI coding assistants:
+    - Cline (`.cline`)
+    - Cursor (`.cursorrules`)
+    - Windsurf (`.windsurfrules`)
+- **Preview Rules**: View rule details including content, tags, and metadata before downloading
 
-For example if there is an image subfolder under your extension project workspace:
+## Getting Started
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Install the extension from the VS Code Marketplace
+2. The extension comes pre-configured with Supabase credentials
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+    > **Note:** If you want to use your own Supabase instance, you can configure it in settings:
+    >
+    > - Go to Settings > Extensions > CodingRules.ai
+    > - Enter your Supabase URL and Anonymous Key
+
+3. Access the extension from the CodingRules.ai icon in the activity bar
+
+## Using the Extension
+
+### Browsing Rules
+
+1. Click the CodingRules.ai icon in the activity bar to open the Rules Explorer
+2. Browse through recent rules or explore by tags or tools
+3. Click on a rule to view its details in a webview panel
+
+### Searching for Rules
+
+1. Click the search icon in the Rules Explorer title bar
+2. Enter your search term and press Enter
+3. Select a rule from the search results to view or download
+
+### Downloading Rules
+
+1. From the rule details view, click one of the download buttons to choose a format:
+    - Cline Rule (`.cline`)
+    - Cursor Rule (`.cursorrules`)
+    - Windsurf Rule (`.windsurfrules`)
+2. If a file with the same name already exists, you'll be prompted to:
+    - Replace the existing file
+    - Merge the new content with the existing file
+
+## Commands
+
+The following commands are available in the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
+
+- **CodingRules: Search for Rules** - Search for rules by title, content, or tags
+- **CodingRules: Download Rule** - Download the selected rule
+- **CodingRules: Refresh Explorer** - Refresh the Rules Explorer view
+- **CodingRules: View Rule Details** - View details of the selected rule
+- **CodingRules: Configure Supabase** - Open the extension settings
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- Visual Studio Code version 1.98.0 or higher
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+- `codingrules-ai.supabaseUrl`: Supabase URL for connecting to the CodingRules.ai API
+- `codingrules-ai.supabaseAnonKey`: Supabase anonymous key for connecting to the CodingRules.ai API
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- Authentication for accessing private rules is not yet supported
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
+Initial release of the CodingRules.ai VS Code Extension:
 
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- Browse and search rules
+- View rule details
+- Download rules in multiple formats

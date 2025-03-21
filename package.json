@@ -1,49 +1,142 @@
 {
-  "name": "codingrules-ai",
-  "displayName": "codingrules.ai",
-  "description": "Download coding rules for your AI coding tool from codingrules.ai",
-  "version": "0.0.1",
-  "engines": {
-    "vscode": "^1.98.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "codingrules-ai.helloWorld",
-        "title": "Hello World"
-      }
-    ]
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "npm run check-types && npm run lint && node esbuild.js",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.98.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
-    "@typescript-eslint/eslint-plugin": "^8.25.0",
-    "@typescript-eslint/parser": "^8.25.0",
-    "eslint": "^9.21.0",
-    "esbuild": "^0.25.0",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.7.3",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
-  }
+    "name": "codingrules-ai",
+    "displayName": "codingrules.ai",
+    "description": "Download coding rules for your AI coding tool from codingrules.ai",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.98.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "codingrules-ai.searchRules",
+                "title": "CodingRules: Search for Rules",
+                "icon": "$(search)"
+            },
+            {
+                "command": "codingrules-ai.downloadRule",
+                "title": "CodingRules: Download Rule",
+                "icon": "$(cloud-download)"
+            },
+            {
+                "command": "codingrules-ai.refreshExplorer",
+                "title": "CodingRules: Refresh Explorer",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "codingrules-ai.viewRule",
+                "title": "CodingRules: View Rule Details",
+                "icon": "$(eye)"
+            },
+            {
+                "command": "codingrules-ai.configureSupabase",
+                "title": "CodingRules: Configure Supabase"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "codingrules-ai.refreshExplorer",
+                    "when": "view == codingrulesExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "codingrules-ai.searchRules",
+                    "when": "view == codingrulesExplorer",
+                    "group": "navigation"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "codingrules-ai.viewRule",
+                    "when": "view == codingrulesExplorer && viewItem == rule",
+                    "group": "inline"
+                },
+                {
+                    "command": "codingrules-ai.downloadRule",
+                    "when": "view == codingrulesExplorer && viewItem == rule",
+                    "group": "inline"
+                }
+            ]
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "codingrules-explorer",
+                    "title": "CodingRules",
+                    "icon": "$(book)"
+                }
+            ]
+        },
+        "views": {
+            "codingrules-explorer": [
+                {
+                    "id": "codingrulesExplorer",
+                    "name": "Rules Explorer"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "CodingRules.ai",
+            "properties": {
+                "codingrules-ai.supabaseUrl": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Supabase URL for connecting to the CodingRules.ai API"
+                },
+                "codingrules-ai.supabaseAnonKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Supabase anonymous key for connecting to the CodingRules.ai API"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "npm run check-types && npm run lint && node esbuild.js",
+        "watch": "npm-run-all -p watch:*",
+        "watch:esbuild": "node esbuild.js --watch",
+        "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+        "package": "npm run check-types && npm run lint && node esbuild.js --production",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "check-types": "tsc --noEmit",
+        "lint": "eslint src",
+        "test": "vscode-test",
+        "dev": "npm run compile && code --new-window --extensionDevelopmentPath=${PWD}",
+        "test-connection": "tsx src/test-connection.ts",
+        "prepare": "husky install"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "20.x",
+        "@types/vscode": "^1.98.0",
+        "@typescript-eslint/eslint-plugin": "^8.25.0",
+        "@typescript-eslint/parser": "^8.25.0",
+        "@vscode/test-cli": "^0.0.10",
+        "@vscode/test-electron": "^2.4.1",
+        "esbuild": "^0.25.0",
+        "eslint": "^9.21.0",
+        "eslint-config-prettier": "^10.1.1",
+        "husky": "^9.1.7",
+        "lint-staged": "^15.5.0",
+        "npm-run-all": "^4.1.5",
+        "prettier": "3.5.3",
+        "supabase": "^2.19.7",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.49.1"
+    },
+    "lint-staged": {
+        "*.js": "eslint --cache --fix",
+        "*.{js,css,md}": "prettier --write"
+    }
 }
