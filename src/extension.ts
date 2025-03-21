@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Config } from './config';
 import { SupabaseService } from './services/supabase.service';
-import { Rule, AIToolFormat } from './models/rule.model';
+import { Rule, AIToolFormat, GenericFormat } from './models/rule.model';
 import { RuleDownloaderService, RuleSaveOptions } from './services/rule-downloader.service';
 import { RulesExplorerProvider, RuleExplorerItem, RuleExplorerItemType } from './views/rules-explorer';
 import { RuleViewer } from './views/rule-viewer';
@@ -99,9 +99,14 @@ export function activate(context: vscode.ExtensionContext) {
 
                     // Ask user to select format
                     const formatOptions = [
-                        { label: 'Cline (.cline)', format: AIToolFormat.CLINE },
-                        { label: 'Cursor (.cursorrules)', format: AIToolFormat.CURSOR },
-                        { label: 'Windsurf (.windsurfrules)', format: AIToolFormat.WINDSURF },
+                        // AI Tool formats
+                        { label: 'Cursor (.cursorrules)', format: AIToolFormat.CURSOR, description: 'Creates .cursorrules file' },
+                        { label: 'Windsurf (.windsurfrules)', format: AIToolFormat.WINDSURF, description: 'Creates .windsurfrules file' },
+                        { label: 'Cline (.clinerules)', format: AIToolFormat.CLINE, description: 'Creates .clinerules file' },
+                        { label: 'GitHub Copilot (copilot-instructions.md)', format: AIToolFormat.GITHUB_COPILOT, description: 'Creates copilot-instructions.md file' },
+                        // Generic formats
+                        { label: 'Markdown', format: GenericFormat.MD, description: 'Creates [rule-title].md file' },
+                        { label: 'Text', format: GenericFormat.TXT, description: 'Creates [rule-title].txt file' },
                     ];
 
                     const selectedFormat = await vscode.window.showQuickPick(formatOptions, {
@@ -112,21 +117,30 @@ export function activate(context: vscode.ExtensionContext) {
                         return; // User cancelled
                     }
 
-                    // Check if file exists and ask about replacement
+                    // Create downloader instance
                     const downloader = new RuleDownloaderService();
-                    const fileName = rule.slug || downloader.sanitizeFileName(rule.title);
-                    const filePath = `${workspaceFolder}/${fileName}${selectedFormat.format}`;
+                    
+                    // Generate the file path based on format type
+                    let filePath: string;
+                    if (Object.values(AIToolFormat).includes(selectedFormat.format as AIToolFormat)) {
+                        // For tool-specific formats, use just the extension
+                        filePath = `${workspaceFolder}/${selectedFormat.format}`;
+                    } else {
+                        // For generic formats, use title + extension
+                        const fileName = rule.slug || downloader.sanitizeFileName(rule.title);
+                        filePath = `${workspaceFolder}/${fileName}${selectedFormat.format}`;
+                    }
                     let replaceExisting = false;
 
                     try {
                         const fs = require('fs');
                         if (fs.existsSync(filePath)) {
                             const choice = await vscode.window.showQuickPick(
-                                ['Replace existing file', 'Merge with existing content'],
+                                ['Replace existing file', 'Merge with existing content', 'Cancel'],
                                 { placeHolder: 'File already exists. How would you like to proceed?' },
                             );
 
-                            if (!choice) {
+                            if (!choice || choice === 'Cancel') {
                                 return; // User cancelled
                             }
 

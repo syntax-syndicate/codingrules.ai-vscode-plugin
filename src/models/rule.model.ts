@@ -56,9 +56,18 @@ export interface Tool {
  * Supported AI tool formats
  */
 export enum AIToolFormat {
-    CLINE = '.cline',
+    CLINE = '.clinerules',
     CURSOR = '.cursorrules',
     WINDSURF = '.windsurfrules',
+    GITHUB_COPILOT = 'copilot-instructions.md',
+}
+
+/**
+ * Generic file formats for rules
+ */
+export enum GenericFormat {
+    MD = '.md',
+    TXT = '.txt',
 }
 
 /**

@@ -246,7 +246,7 @@ export class RuleViewer {
         
         <div class="download-section">
           <h3>Download as:</h3>
-          <button id="download-cline">Cline Rule (.cline)</button>
+          <button id="download-cline">Cline Rule (.clinerules)</button>
           <button id="download-cursor">Cursor Rule (.cursorrules)</button>
           <button id="download-windsurf">Windsurf Rule (.windsurfrules)</button>
         </div>
@@ -255,7 +255,7 @@ export class RuleViewer {
           const vscode = acquireVsCodeApi();
           
           document.getElementById('download-cline').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.cline' });
+            vscode.postMessage({ command: 'downloadRule', format: '.clinerules' });
           });
           
           document.getElementById('download-cursor').addEventListener('click', () => {

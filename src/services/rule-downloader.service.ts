@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Rule, AIToolFormat } from '../models/rule.model';
+import { Rule, AIToolFormat, GenericFormat } from '../models/rule.model';
 
 /**
  * Options for saving rule files
@@ -9,10 +9,12 @@ import { Rule, AIToolFormat } from '../models/rule.model';
 export interface RuleSaveOptions {
     /** The directory path to save the rule file to */
     directory: string;
-    /** The format to use for the rule file */
-    format: AIToolFormat;
+    /** The format to use for the rule file (AI tool-specific or generic) */
+    format: AIToolFormat | GenericFormat;
     /** Whether to replace existing files or merge content */
     replaceExisting?: boolean;
+    /** Whether operation was cancelled by user */
+    cancelled?: boolean;
 }
 
 /**
@@ -26,9 +28,17 @@ export class RuleDownloaderService {
         const { directory, format, replaceExisting = false } = options;
 
         try {
-            // Format the file name (slug or sanitized title)
-            const fileName = rule.slug || this.sanitizeFileName(rule.title);
-            const filePath = path.join(directory, `${fileName}${format}`);
+            let filePath: string;
+            
+            // Check if using a tool-specific format or generic format
+            if (this.isToolSpecificFormat(format)) {
+                // For tool-specific formats, use just the extension (no title)
+                filePath = path.join(directory, `${format}`);
+            } else {
+                // For generic formats, use the title + extension
+                const fileName = rule.slug || this.sanitizeFileName(rule.title);
+                filePath = path.join(directory, `${fileName}${format}`);
+            }
 
             // Check if file exists
             const fileExists = fs.existsSync(filePath);
@@ -78,6 +88,13 @@ export class RuleDownloaderService {
             .toLowerCase()
             .replace(/\s+/g, '-')
             .replace(/[^a-z0-9-]/g, '');
+    }
+
+    /**
+     * Check if a format is a tool-specific format
+     */
+    private isToolSpecificFormat(format: string): boolean {
+        return Object.values(AIToolFormat).includes(format as AIToolFormat);
     }
 
     /**

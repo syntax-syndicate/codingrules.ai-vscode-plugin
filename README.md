@@ -12,7 +12,7 @@ This extension allows you to search, browse, and download rules from [CodingRule
 - **Browse Rules**: Use the sidebar view to browse recently added rules, or explore by tags and tools
 - **Search Rules**: Search for rules by title, content, or tags
 - **Download Rules**: Download rules in formats compatible with popular AI coding assistants:
-    - Cline (`.cline`)
+    - Cline (`.clinerules`)
     - Cursor (`.cursorrules`)
     - Windsurf (`.windsurfrules`)
 - **Preview Rules**: View rule details including content, tags, and metadata before downloading
@@ -46,7 +46,7 @@ This extension allows you to search, browse, and download rules from [CodingRule
 ### Downloading Rules
 
 1. From the rule details view, click one of the download buttons to choose a format:
-    - Cline Rule (`.cline`)
+    - Cline Rule (`.clinerules`)
     - Cursor Rule (`.cursorrules`)
     - Windsurf Rule (`.windsurfrules`)
 2. If a file with the same name already exists, you'll be prompted to:
