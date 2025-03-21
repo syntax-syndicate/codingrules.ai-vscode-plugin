@@ -1,5 +1,10 @@
 # CodingRules.ai VS Code Extension
 
+<div align="center">
+  <img src="images/icon.png" alt="CodingRules.ai Logo" width="128" />
+  <p><strong>Standardize your codebase and improve team collaboration with AI-powered rules management</strong></p>
+</div>
+
 This extension allows you to search, browse, and download rules from [CodingRules.ai](https://codingrules.ai) directly within VS Code.
 
 ## Features

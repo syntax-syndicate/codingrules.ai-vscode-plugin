@@ -1,9 +1,10 @@
 {
     "name": "codingrules-ai",
     "displayName": "codingrules.ai",
-    "description": "Download coding rules for your AI coding tool from codingrules.ai",
+    "description": "Easily discover, download, and implement coding rules for your projects with codingrules.ai. Standardize your codebase and improve team collaboration with AI-powered rules management.",
     "version": "0.0.1",
     "publisher": "codingrulesai",
+    "icon": "images/icon.png",
     "pricing": "Free",
     "repository": {
         "type": "git",
@@ -76,7 +77,7 @@
                 {
                     "id": "codingrules-explorer",
                     "title": "CodingRules",
-                    "icon": "$(book)"
+                    "icon": "resources/logo.svg"
                 }
             ]
         },
