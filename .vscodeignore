@@ -14,3 +14,11 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 !resources/**
 !images/**
+
+# Additional development files to exclude
+.husky/**
+.prettierignore
+commitlint.config.js
+.versionrc.json
+renovate.json
+CHANGELOG.md
