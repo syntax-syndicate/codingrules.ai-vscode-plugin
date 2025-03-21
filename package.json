@@ -54,10 +54,6 @@
                 "icon": "$(eye)"
             },
             {
-                "command": "codingrules-ai.configureSupabase",
-                "title": "CodingRules: Configure Supabase"
-            },
-            {
                 "command": "codingrules-ai.login",
                 "title": "CodingRules: Login to Account",
                 "icon": "$(person)"

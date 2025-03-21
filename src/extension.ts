@@ -298,14 +298,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Register config command
-        context.subscriptions.push(
-            vscode.commands.registerCommand('codingrules-ai.configureSupabase', async () => {
-                // Open settings and focus on our extension's settings
-                await vscode.commands.executeCommand('workbench.action.openSettings', 'codingrules-ai');
-            }),
-        );
-
         // Login command is already registered above
 
         // Register logout command
