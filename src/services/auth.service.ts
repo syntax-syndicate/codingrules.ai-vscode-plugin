@@ -18,23 +18,10 @@ export class AuthService {
         this.context = context;
 
         // First check for existing session synchronously - using getSession
-        // Note: getSession is async but we'll initialize as potentially null first
-        // and the onAuthStateChange listener will update the state asynchronously
-
-        this.client.auth
-            .getUser()
-            .then(({ data }) => {
-                if (data.user) {
-                    this._currentUser = data.user;
-                }
-            })
-            .catch((error) => {
-                console.error('Error getting initial session:', error);
-            });
+        this.refreshCurrentUser();
 
         // Set up auth state change listener to ensure state is always up to date
         this.client.auth.onAuthStateChange((event, session) => {
-            console.log(`Auth state changed: ${event}`);
             this._currentUser = session?.user || null;
 
             // Save session when it becomes available
@@ -50,7 +37,6 @@ export class AuthService {
         });
 
         // Initialize and load any existing session
-        // This is now supplementary to the onAuthStateChange listener
         this.loadSession().catch((error) => {
             console.error('Error loading session during initialization:', error);
         });
@@ -87,28 +73,25 @@ export class AuthService {
     }
 
     /**
+     * Force refresh the current user state
+     */
+    public async refreshCurrentUser(): Promise<User | null> {
+        try {
+            const { data } = await this.client.auth.getUser();
+            if (data.user) {
+                this._currentUser = data.user;
+            }
+            return this._currentUser;
+        } catch (error) {
+            console.error('Error refreshing user:', error);
+            return this._currentUser;
+        }
+    }
+
+    /**
      * Check if a user is currently authenticated
      */
     public get isAuthenticated(): boolean {
-        // First check the cached user object
-        if (this._currentUser !== null) {
-            return true;
-        }
-
-        // If we don't have a cached user, trigger a session check
-        // This won't affect the current return value but will update state for future checks
-        this.client.auth
-            .getSession()
-            .then(({ data }) => {
-                if (data.session?.user && !this._currentUser) {
-                    console.log('Found session during isAuthenticated check:', data.session.user.email);
-                    this._currentUser = data.session.user;
-                }
-            })
-            .catch((error) => {
-                console.error('Error checking session in isAuthenticated:', error);
-            });
-
         return this._currentUser !== null;
     }
 
@@ -194,7 +177,6 @@ export class AuthService {
                 // Get the user from the session
                 if (data?.user) {
                     this._currentUser = data.user;
-                    console.log('Session loaded successfully for user:', data.user.email);
                 }
             }
         } catch (error) {
@@ -218,7 +200,6 @@ export class AuthService {
                 // Store both tokens separately
                 await this.context.secrets.store(this.SESSION_KEY + '.access', data.session.access_token);
                 await this.context.secrets.store(this.SESSION_KEY + '.refresh', data.session.refresh_token);
-                console.log('Session saved successfully for user:', this._currentUser.email);
             }
         } catch (error) {
             console.error('Error saving session:', error);

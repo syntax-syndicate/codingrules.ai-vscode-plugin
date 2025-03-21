@@ -116,7 +116,6 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 // Set initial state based on auth
                 this.showPrivateContent = this.authService.isAuthenticated;
             } catch (e) {
-                console.log('Auth service not initialized, private content will be hidden');
                 this.showPrivateContent = false;
             }
 
@@ -179,7 +178,6 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         if (!rule.content) {
             try {
                 // Try to fetch the complete rule from the database
-                console.log(`Fetching complete rule data for ${rule.id}`);
                 const completeRule = await this.supabaseService.getRule(rule.id);
 
                 if (!completeRule) {
@@ -210,94 +208,48 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     }
 
     async refreshData(): Promise<void> {
+        if (!this.supabaseService) {
+            console.error('SupabaseService not available');
+            return;
+        }
+
+        this.isLoading = true;
+        this._onDidChangeTreeData.fire();
+
         try {
-            this.isLoading = true;
-            this.refresh();
+            // Check authentication state and log it for debugging
+            const isAuthenticated = this.authService?.isAuthenticated || false;
 
-            // Check authentication status - forcefully get the current instance
-            try {
-                // Force get the updated instance instead of using the cached one
-                this.authService = AuthService.getInstance();
-
-                // Explicitly check authentication status
+            // Force authentication refresh if available
+            if (this.authService) {
+                await this.authService.refreshCurrentUser();
                 this.showPrivateContent = this.authService.isAuthenticated;
-                console.log(
-                    'Authentication status checked:',
-                    this.showPrivateContent ? 'Authenticated' : 'Not authenticated',
-                );
-
-                if (this.authService.currentUser) {
-                    console.log('Current user email:', this.authService.currentUser.email);
-                }
-            } catch (e) {
-                console.error('Could not check auth status', e);
-                this.showPrivateContent = false;
             }
 
-            // Fetch data in parallel, including private content if authenticated
-            const [rulesResult, topUpvotedResult, tags, tools] = await Promise.all([
-                this.supabaseService.searchRules({
-                    limit: 20,
-                    include_private: this.showPrivateContent,
-                }),
-                this.supabaseService.getTopUpvotedRules(20),
-                this.supabaseService.getTags(),
-                this.supabaseService.getTools(),
-            ]);
-
-            this.rules = rulesResult.rules;
-            this.topUpvotedRules = topUpvotedResult.rules;
-            this.tags = tags;
-            this.tools = tools;
-
-            this.isLoading = false;
-            // Force a complete refresh
-            this._onDidChangeTreeData.fire();
-        } catch (error) {
-            this.isLoading = false;
-            console.error('Error refreshing data:', error);
-
-            // Better error message formatting
-            let errorMessage = 'Failed to load coding rules';
-
-            if (error instanceof Error) {
-                errorMessage += `: ${error.message}`;
-            } else if (error && typeof error === 'object') {
-                try {
-                    errorMessage += `: ${JSON.stringify(error)}`;
-                } catch {
-                    errorMessage += ': Unknown error format';
-                }
-            } else if (error) {
-                errorMessage += `: ${String(error)}`;
-            }
-
-            // Show error in UI with more details
-            vscode.window.showErrorMessage(errorMessage, 'View Details').then((selection) => {
-                if (selection === 'View Details') {
-                    // Create an output channel to display detailed error information
-                    const outputChannel = vscode.window.createOutputChannel('CodingRules.ai Error Details');
-                    outputChannel.clear();
-                    outputChannel.appendLine('=== Error Details ===');
-                    outputChannel.appendLine(errorMessage);
-
-                    try {
-                        outputChannel.appendLine('\n=== Technical Details ===');
-                        outputChannel.appendLine(JSON.stringify(error, null, 2));
-                    } catch (e) {
-                        outputChannel.appendLine('\nCould not stringify error details: ' + String(e));
-                        outputChannel.appendLine('Error type: ' + (error ? typeof error : 'undefined'));
-                    }
-
-                    outputChannel.show();
-                }
+            // Load rules
+            const { rules } = await this.supabaseService.searchRules({
+                include_private: this.showPrivateContent,
+                limit: 50,
             });
+            this.rules = rules || [];
 
-            // Log detailed error for debugging
-            console.log('Detailed error:', error);
+            // Load top rules
+            const { rules: topRules } = await this.supabaseService.getTopUpvotedRules(10);
+            this.topUpvotedRules = topRules || [];
 
-            // Update UI to show error state
-            this.refresh();
+            // Load tags
+            const tags = await this.supabaseService.getTags();
+            this.tags = tags || [];
+
+            // Load tools
+            const tools = await this.supabaseService.getTools();
+            this.tools = tools || [];
+        } catch (error) {
+            console.error('Error refreshing rules data:', error);
+            vscode.window.showErrorMessage('Failed to load rules data. Please try again later.');
+        } finally {
+            this.isLoading = false;
+            this._onDidChangeTreeData.fire();
         }
     }
 

@@ -45,32 +45,43 @@ function getEditorProtocol(): string {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Extension "codingrules-ai" is now active!');
-
     try {
         // Initialize configuration
         const config = Config.getInstance(context);
 
+        // Get Supabase configuration
+        const supabaseConfig = config.getSupabaseConfig();
+
         // Initialize services
-        let supabaseService: SupabaseService;
-        let authService: AuthService;
+        const supabaseService = SupabaseService.initialize(supabaseConfig);
+        const authService = AuthService.initialize(supabaseConfig, context);
 
-        try {
-            const supabaseConfig = config.getSupabaseConfig();
+        // Link services (circular dependency resolution)
+        supabaseService.setAuthService(authService);
 
-            // Initialize Auth Service
-            authService = AuthService.initialize(supabaseConfig, context);
+        /**
+         * Handle the login flow
+         */
+        async function loginCommand(extensionContext: vscode.ExtensionContext): Promise<void> {
+            try {
+                // Generate a secure random state parameter to prevent CSRF attacks
+                const state = crypto.randomBytes(32).toString('hex');
 
-            // Initialize Supabase Service
-            supabaseService = SupabaseService.initialize(supabaseConfig);
+                // Store the state in extension storage for later verification
+                await extensionContext.globalState.update('codingrules.authState', state);
 
-            // Connect auth service to supabase service
-            supabaseService.setAuthService(authService);
-        } catch (error) {
-            console.error('Failed to initialize services:', error);
-            vscode.window.showErrorMessage(
-                `Failed to initialize CodingRules.ai: ${error instanceof Error ? error.message : String(error)}`,
-            );
+                // Determine the correct protocol based on the editor
+                const editorProtocol = getEditorProtocol();
+
+                // Redirect to web app with state parameter
+                const webAppUrl = `https://codingrules.ai/auth/extension?redirect=${encodeURIComponent(editorProtocol + extensionContext.extension.id + '/auth/callback')}&state=${encodeURIComponent(state)}`;
+                await vscode.env.openExternal(vscode.Uri.parse(webAppUrl));
+                vscode.window.showInformationMessage('Redirecting to the CodingRules.ai login page...');
+            } catch (error) {
+                vscode.window.showErrorMessage(
+                    `Login failed: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
         }
 
         // Register the URI handler for auth callbacks from web app
@@ -126,24 +137,37 @@ export function activate(context: vscode.ExtensionContext) {
         // Register login command
         context.subscriptions.push(
             vscode.commands.registerCommand('codingrules-ai.login', async () => {
-                try {
-                    // Generate a secure random state parameter to prevent CSRF attacks
-                    const state = crypto.randomBytes(32).toString('hex');
+                // Check if already logged in
+                if (authService.isAuthenticated) {
+                    const actions = ['View Profile', 'Logout', 'Cancel'];
+                    const choice = await vscode.window.showInformationMessage('You are already logged in.', ...actions);
 
-                    // Store the state in extension storage for later verification
-                    await context.globalState.update('codingrules.authState', state);
+                    if (choice === 'View Profile') {
+                        vscode.commands.executeCommand('codingrules-ai.viewProfile');
+                    } else if (choice === 'Logout') {
+                        vscode.commands.executeCommand('codingrules-ai.logout');
+                    }
+                    return;
+                }
 
-                    // Determine the correct protocol based on the editor
-                    const editorProtocol = getEditorProtocol();
+                // Open login in browser
+                await loginCommand(context);
+            }),
+        );
 
-                    // Redirect to web app with state parameter
-                    const webAppUrl = `https://codingrules.ai/auth/extension?redirect=${encodeURIComponent(editorProtocol + context.extension.id + '/auth/callback')}&state=${encodeURIComponent(state)}`;
-                    await vscode.env.openExternal(vscode.Uri.parse(webAppUrl));
-                    vscode.window.showInformationMessage('Redirecting to the CodingRules.ai login page...');
-                } catch (error) {
-                    vscode.window.showErrorMessage(
-                        `Login failed: ${error instanceof Error ? error.message : String(error)}`,
-                    );
+        // Register command to check authentication status
+        context.subscriptions.push(
+            vscode.commands.registerCommand('codingrules-ai.checkAuthStatus', async () => {
+                // Force a refresh of the current user
+                await authService.refreshCurrentUser();
+
+                if (authService.isAuthenticated) {
+                    const user = authService.currentUser;
+                    vscode.window.showInformationMessage(`Authenticated as: ${user?.email || 'Unknown user'}`);
+                    // Refresh the Explorer view to update based on refreshed auth state
+                    rulesExplorerProvider.refreshData();
+                } else {
+                    vscode.window.showWarningMessage('Not authenticated. Please login to see private content.');
                 }
             }),
         );

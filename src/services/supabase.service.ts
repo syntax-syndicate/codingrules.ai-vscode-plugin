@@ -19,10 +19,7 @@ export class SupabaseService {
         // Attempt to get the AuthService if it's already initialized
         try {
             this.authService = AuthService.getInstance();
-        } catch (e) {
-            // AuthService not initialized yet, will be set later
-            console.log('AuthService not initialized yet, authentication features will be limited');
-        }
+        } catch (e) {}
     }
 
     /**
@@ -59,7 +56,7 @@ export class SupabaseService {
      * Check if a user is currently authenticated
      */
     public get isAuthenticated(): boolean {
-        return this.authService?.isAuthenticated || false;
+        return this.authService?.currentUser !== null || false;
     }
 
     /**
@@ -96,6 +93,9 @@ export class SupabaseService {
      */
     public async searchRules(params: RuleSearchParams = {}): Promise<RuleListResponse> {
         try {
+            // Ensure auth state is up-to-date before proceeding
+            const isUserAuthenticated = this.isAuthenticated;
+
             // Extract parameters with defaults
             const {
                 query = '',
@@ -104,10 +104,8 @@ export class SupabaseService {
                 page = 1,
                 limit = 20,
                 // Include private content if explicitly requested or if user is authenticated
-                include_private = this.isAuthenticated,
+                include_private = isUserAuthenticated,
             } = params;
-
-            console.log('Executing searchRules with query:', query);
 
             let queryBuilder = this.client
                 .from('rules')
@@ -135,7 +133,6 @@ export class SupabaseService {
 
                     if (tagSearchData && tagSearchData.length > 0) {
                         tagRuleIds = tagSearchData.map((item) => item.rule_id);
-                        console.log(`Found ${tagRuleIds.length} rules matching tag search for: ${query}`);
                     }
                 } catch (tagError) {
                     console.error('Error searching tags:', tagError);
@@ -174,8 +171,6 @@ export class SupabaseService {
                 console.error('Supabase returned error:', error);
                 throw error;
             }
-
-            console.log(`Found ${count || 0} rules matching criteria`);
 
             return {
                 rules: data ? data.map(this.transformRuleData) : [],
@@ -242,8 +237,6 @@ export class SupabaseService {
      */
     public async getTopUpvotedRules(limit: number = 20): Promise<RuleListResponse> {
         try {
-            console.log('Fetching top upvoted rules');
-
             let queryBuilder = this.client
                 .from('rules')
                 .select('*, rule_tags!inner(tag_id, tags!inner(*))', { count: 'exact' })
@@ -263,8 +256,6 @@ export class SupabaseService {
                 console.error('Supabase returned error:', error);
                 throw error;
             }
-
-            console.log(`Found ${count || 0} top upvoted rules`);
 
             return {
                 rules: data ? data.map(this.transformRuleData) : [],
