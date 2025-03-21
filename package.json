@@ -15,9 +15,21 @@
         "vscode": "^1.98.0"
     },
     "categories": [
+        "AI",
+        "Linters",
+        "Formatters",
+        "Programming Languages",
         "Other"
     ],
-    "activationEvents": [],
+    "keywords": [
+        "coding standards",
+        "linting",
+        "formatting",
+        "rules",
+        "best practices",
+        "code quality",
+        "team collaboration"
+    ],
     "main": "./dist/extension.js",
     "contributes": {
         "commands": [
@@ -88,21 +100,6 @@
                     "name": "Rules Explorer"
                 }
             ]
-        },
-        "configuration": {
-            "title": "CodingRules.ai",
-            "properties": {
-                "codingrules-ai.supabaseUrl": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Supabase URL for connecting to the CodingRules.ai API"
-                },
-                "codingrules-ai.supabaseAnonKey": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Supabase anonymous key for connecting to the CodingRules.ai API"
-                }
-            }
         }
     },
     "scripts": {
@@ -137,14 +134,13 @@
         "lint-staged": "^15.5.0",
         "npm-run-all": "^4.1.5",
         "prettier": "3.5.3",
-        "supabase": "^2.19.7",
         "typescript": "^5.7.3"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.49.1"
     },
     "lint-staged": {
-        "*.js": "eslint --cache --fix",
-        "*.{js,css,md}": "prettier --write"
+        "*.{js,ts}": "eslint --cache --fix",
+        "*.{js,ts,css,md,json}": "prettier --write"
     }
 }
