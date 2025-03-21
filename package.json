@@ -3,6 +3,11 @@
     "displayName": "codingrules.ai",
     "description": "Download coding rules for your AI coding tool from codingrules.ai",
     "version": "0.0.1",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/codingrules-ai/codingrules-ai-vscode.git"
+    },
+    "license": "MIT",
     "engines": {
         "vscode": "^1.98.0"
     },
