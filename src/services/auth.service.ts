@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
-import { Config, SupabaseConfig } from '../config';
+import * as vscode from 'vscode';
+import { SupabaseConfig } from '../config';
 import { Database } from '../types/database.types';
 
 /**
@@ -16,7 +16,41 @@ export class AuthService {
     private constructor(config: SupabaseConfig, context: vscode.ExtensionContext) {
         this.client = createClient<Database>(config.url, config.anonKey);
         this.context = context;
+
+        // First check for existing session synchronously - using getSession
+        // Note: getSession is async but we'll initialize as potentially null first
+        // and the onAuthStateChange listener will update the state asynchronously
+
+        this.client.auth
+            .getUser()
+            .then(({ data }) => {
+                if (data.user) {
+                    this._currentUser = data.user;
+                }
+            })
+            .catch((error) => {
+                console.error('Error getting initial session:', error);
+            });
+
+        // Set up auth state change listener to ensure state is always up to date
+        this.client.auth.onAuthStateChange((event, session) => {
+            console.log(`Auth state changed: ${event}`);
+            this._currentUser = session?.user || null;
+
+            // Save session when it becomes available
+            if (event === 'SIGNED_IN' && session) {
+                this.saveSession().catch((error) => {
+                    console.error('Error saving session after auth state change:', error);
+                });
+            } else if (event === 'SIGNED_OUT') {
+                this.clearSession().catch((error) => {
+                    console.error('Error clearing session after sign out:', error);
+                });
+            }
+        });
+
         // Initialize and load any existing session
+        // This is now supplementary to the onAuthStateChange listener
         this.loadSession().catch((error) => {
             console.error('Error loading session during initialization:', error);
         });
@@ -56,6 +90,25 @@ export class AuthService {
      * Check if a user is currently authenticated
      */
     public get isAuthenticated(): boolean {
+        // First check the cached user object
+        if (this._currentUser !== null) {
+            return true;
+        }
+
+        // If we don't have a cached user, trigger a session check
+        // This won't affect the current return value but will update state for future checks
+        this.client.auth
+            .getSession()
+            .then(({ data }) => {
+                if (data.session?.user && !this._currentUser) {
+                    console.log('Found session during isAuthenticated check:', data.session.user.email);
+                    this._currentUser = data.session.user;
+                }
+            })
+            .catch((error) => {
+                console.error('Error checking session in isAuthenticated:', error);
+            });
+
         return this._currentUser !== null;
     }
 
@@ -65,38 +118,6 @@ export class AuthService {
     public async getAccessToken(): Promise<string | null> {
         const session = await this.client.auth.getSession();
         return session.data.session?.access_token || null;
-    }
-
-    /**
-     * Log in a user with email and password
-     */
-    public async login(email: string, password: string): Promise<User> {
-        try {
-            const { data, error } = await this.client.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            if (error) {
-                throw error;
-            }
-
-            if (!data.user) {
-                throw new Error('No user returned from authentication');
-            }
-
-            this._currentUser = data.user;
-            await this.saveSession();
-
-            // Notify about successful login
-            vscode.window.showInformationMessage(`Logged in as ${data.user.email}`);
-
-            return data.user;
-        } catch (error) {
-            console.error('Login error:', error);
-            vscode.window.showErrorMessage(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
-            throw error;
-        }
     }
 
     /**
