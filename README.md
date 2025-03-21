@@ -61,29 +61,7 @@ The following commands are available in the Command Palette (`Ctrl+Shift+P` / `C
 - **CodingRules: Download Rule** - Download the selected rule
 - **CodingRules: Refresh Explorer** - Refresh the Rules Explorer view
 - **CodingRules: View Rule Details** - View details of the selected rule
-- **CodingRules: Configure Supabase** - Open the extension settings
 
 ## Requirements
 
-- Visual Studio Code version 1.98.0 or higher
-
-## Extension Settings
-
-This extension contributes the following settings:
-
-- `codingrules-ai.supabaseUrl`: Supabase URL for connecting to the CodingRules.ai API
-- `codingrules-ai.supabaseAnonKey`: Supabase anonymous key for connecting to the CodingRules.ai API
-
-## Known Issues
-
-- Authentication for accessing private rules is not yet supported
-
-## Release Notes
-
-### 0.0.1
-
-Initial release of the CodingRules.ai VS Code Extension:
-
-- Browse and search rules
-- View rule details
-- Download rules in multiple formats
+- Visual Studio Code version 1.90.0 or higher
