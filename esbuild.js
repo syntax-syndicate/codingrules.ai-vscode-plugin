@@ -33,12 +33,13 @@ async function main() {
         sourcesContent: false,
         platform: 'node',
         outfile: 'dist/extension.js',
-        external: ['vscode'],
+        external: ['vscode', '@supabase/supabase-js'],
         logLevel: 'silent',
         plugins: [
             /* add to the end of plugins array */
             esbuildProblemMatcherPlugin,
         ],
+        treeShaking: true,
     });
     if (watch) {
         await ctx.watch();
