@@ -2,7 +2,7 @@
     "name": "codingrules-ai",
     "displayName": "codingrules.ai",
     "description": "Easily discover, download, and implement coding rules for your projects with codingrules.ai. Standardize your codebase and improve team collaboration with AI-powered rules management.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "publisher": "codingrulesai",
     "icon": "images/icon.png",
     "pricing": "Free",
@@ -117,9 +117,17 @@
         "test": "vscode-test",
         "dev": "npm run compile && code --new-window --extensionDevelopmentPath=${PWD}",
         "test-connection": "tsx src/test-connection.ts",
-        "prepare": "husky install"
+        "prepare": "husky install",
+        "release:major": "standard-version --release-as major",
+        "release:minor": "standard-version --release-as minor",
+        "release:patch": "standard-version --release-as patch",
+        "publish:major": "npm run release:major && vsce publish",
+        "publish:minor": "npm run release:minor && vsce publish",
+        "publish:patch": "npm run release:patch && vsce publish"
     },
     "devDependencies": {
+        "@commitlint/cli": "^19.0.3",
+        "@commitlint/config-conventional": "^19.0.3",
         "@types/mocha": "^10.0.10",
         "@types/node": "20.x",
         "@types/vscode": "^1.98.0",
@@ -134,6 +142,7 @@
         "lint-staged": "^15.5.0",
         "npm-run-all": "^4.1.5",
         "prettier": "3.5.3",
+        "standard-version": "^9.5.0",
         "typescript": "^5.7.3"
     },
     "dependencies": {
