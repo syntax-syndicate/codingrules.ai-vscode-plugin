@@ -3,6 +3,8 @@
     "displayName": "codingrules.ai",
     "description": "Download coding rules for your AI coding tool from codingrules.ai",
     "version": "0.0.1",
+    "publisher": "codingrulesai",
+    "pricing": "Free",
     "repository": {
         "type": "git",
         "url": "https://github.com/codingrules-ai/codingrules-ai-vscode.git"
