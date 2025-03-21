@@ -161,7 +161,7 @@
         "@vscode/test-cli": "^0.0.10",
         "@vscode/test-electron": "^2.4.1",
         "esbuild": "^0.25.0",
-        "eslint": "^9.21.0",
+        "eslint": "^9.23.0",
         "eslint-config-prettier": "^10.1.1",
         "husky": "^9.1.7",
         "lint-staged": "^15.5.0",
