@@ -200,11 +200,29 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 errorMessage += `: ${String(error)}`;
             }
 
-            // Show error in UI
-            vscode.window.showErrorMessage(errorMessage);
+            // Show error in UI with more details
+            vscode.window.showErrorMessage(errorMessage, 'View Details').then(selection => {
+                if (selection === 'View Details') {
+                    // Create an output channel to display detailed error information
+                    const outputChannel = vscode.window.createOutputChannel('CodingRules.ai Error Details');
+                    outputChannel.clear();
+                    outputChannel.appendLine('=== Error Details ===');
+                    outputChannel.appendLine(errorMessage);
+                    
+                    try {
+                        outputChannel.appendLine('\n=== Technical Details ===');
+                        outputChannel.appendLine(JSON.stringify(error, null, 2));
+                    } catch (e) {
+                        outputChannel.appendLine('\nCould not stringify error details: ' + String(e));
+                        outputChannel.appendLine('Error type: ' + (error ? typeof error : 'undefined'));
+                    }
+                    
+                    outputChannel.show();
+                }
+            });
 
             // Log detailed error for debugging
-            console.log('Detailed error:', JSON.stringify(error, null, 2));
+            console.log('Detailed error:', error);
 
             // Update UI to show error state
             this.refresh();

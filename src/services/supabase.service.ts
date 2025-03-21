@@ -82,10 +82,36 @@ export class SupabaseService {
 
             // Search by title/content/tags
             if (query) {
-                // Create a more comprehensive search query that includes title, content, and tags
-                queryBuilder = queryBuilder.or(
-                    `title.ilike.%${query}%,content.ilike.%${query}%,rule_tags.tags.name.ilike.%${query}%`
-                );
+                // Use a separate query for searching in tags to avoid syntax errors with nested joins
+                let tagRuleIds: string[] = [];
+                
+                try {
+                    // First, get rule IDs that match the tag search
+                    const { data: tagSearchData } = await this.client
+                        .from('rule_tags')
+                        .select('rule_id, tags!inner(*)')
+                        .ilike('tags.name', `%${query}%`);
+                    
+                    if (tagSearchData && tagSearchData.length > 0) {
+                        tagRuleIds = tagSearchData.map(item => item.rule_id);
+                        console.log(`Found ${tagRuleIds.length} rules matching tag search for: ${query}`);
+                    }
+                } catch (tagError) {
+                    console.error('Error searching tags:', tagError);
+                    // Continue with main search even if tag search fails
+                }
+                
+                // Search in main table (title, content)
+                // Plus include rules that matched by tag (if any)
+                if (tagRuleIds.length > 0) {
+                    queryBuilder = queryBuilder.or(
+                        `title.ilike.%${query}%,content.ilike.%${query}%,id.in.(${tagRuleIds.join(',')})`
+                    );
+                } else {
+                    queryBuilder = queryBuilder.or(
+                        `title.ilike.%${query}%,content.ilike.%${query}%`
+                    );
+                }
             }
 
             // Filter by tool
@@ -265,7 +291,8 @@ export class SupabaseService {
             } catch (formatError) {
                 // If JSON stringify fails or any other error occurs during formatting
                 console.error('Error while formatting error message:', formatError);
-                throw new Error(`Database error: Unable to format error details`);
+                console.error('Original error:', error);
+                throw new Error(`Database error: ${error.message || 'Unknown error'}`);
             }
         } else {
             // Completely generic error
