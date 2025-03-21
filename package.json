@@ -56,6 +56,21 @@
             {
                 "command": "codingrules-ai.configureSupabase",
                 "title": "CodingRules: Configure Supabase"
+            },
+            {
+                "command": "codingrules-ai.login",
+                "title": "CodingRules: Login to Account",
+                "icon": "$(person)"
+            },
+            {
+                "command": "codingrules-ai.logout",
+                "title": "CodingRules: Logout",
+                "icon": "$(sign-out)"
+            },
+            {
+                "command": "codingrules-ai.viewProfile",
+                "title": "CodingRules: View Profile",
+                "icon": "$(account)"
             }
         ],
         "menus": {
@@ -67,6 +82,16 @@
                 },
                 {
                     "command": "codingrules-ai.searchRules",
+                    "when": "view == codingrulesExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "codingrules-ai.login",
+                    "when": "view == codingrulesExplorer",
+                    "group": "navigation"
+                },
+                {
+                    "command": "codingrules-ai.viewProfile",
                     "when": "view == codingrulesExplorer",
                     "group": "navigation"
                 }

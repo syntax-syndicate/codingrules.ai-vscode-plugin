@@ -1,5 +1,6 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import { Config, SupabaseConfig } from '../config';
+import { AuthService } from './auth.service';
 import { Rule, RuleListResponse, RuleSearchParams } from '../models/rule.model';
 import { Database } from '../types/database.types';
 
@@ -10,8 +11,18 @@ export class SupabaseService {
     private static instance: SupabaseService;
     private client: SupabaseClient<Database>;
 
+    private authService: AuthService | null = null;
+
     private constructor(config: SupabaseConfig) {
         this.client = createClient<Database>(config.url, config.anonKey);
+
+        // Attempt to get the AuthService if it's already initialized
+        try {
+            this.authService = AuthService.getInstance();
+        } catch (e) {
+            // AuthService not initialized yet, will be set later
+            console.log('AuthService not initialized yet, authentication features will be limited');
+        }
     }
 
     /**
@@ -35,6 +46,27 @@ export class SupabaseService {
     public static initialize(config: SupabaseConfig): SupabaseService {
         SupabaseService.instance = new SupabaseService(config);
         return SupabaseService.instance;
+    }
+
+    /**
+     * Set the auth service reference
+     */
+    public setAuthService(authService: AuthService): void {
+        this.authService = authService;
+    }
+
+    /**
+     * Check if a user is currently authenticated
+     */
+    public get isAuthenticated(): boolean {
+        return this.authService?.isAuthenticated || false;
+    }
+
+    /**
+     * Get the current authenticated user, if any
+     */
+    public get currentUser(): User | null {
+        return this.authService?.currentUser || null;
     }
 
     /**
@@ -64,7 +96,16 @@ export class SupabaseService {
      */
     public async searchRules(params: RuleSearchParams = {}): Promise<RuleListResponse> {
         try {
-            const { query = '', tags = [], tool_id, page = 1, limit = 20, include_private = false } = params;
+            // Extract parameters with defaults
+            const {
+                query = '',
+                tags = [],
+                tool_id,
+                page = 1,
+                limit = 20,
+                // Include private content if explicitly requested or if user is authenticated
+                include_private = this.isAuthenticated,
+            } = params;
 
             console.log('Executing searchRules with query:', query);
 
@@ -84,33 +125,31 @@ export class SupabaseService {
             if (query) {
                 // Use a separate query for searching in tags to avoid syntax errors with nested joins
                 let tagRuleIds: string[] = [];
-                
+
                 try {
                     // First, get rule IDs that match the tag search
                     const { data: tagSearchData } = await this.client
                         .from('rule_tags')
                         .select('rule_id, tags!inner(*)')
                         .ilike('tags.name', `%${query}%`);
-                    
+
                     if (tagSearchData && tagSearchData.length > 0) {
-                        tagRuleIds = tagSearchData.map(item => item.rule_id);
+                        tagRuleIds = tagSearchData.map((item) => item.rule_id);
                         console.log(`Found ${tagRuleIds.length} rules matching tag search for: ${query}`);
                     }
                 } catch (tagError) {
                     console.error('Error searching tags:', tagError);
                     // Continue with main search even if tag search fails
                 }
-                
+
                 // Search in main table (title, content)
                 // Plus include rules that matched by tag (if any)
                 if (tagRuleIds.length > 0) {
                     queryBuilder = queryBuilder.or(
-                        `title.ilike.%${query}%,content.ilike.%${query}%,id.in.(${tagRuleIds.join(',')})`
+                        `title.ilike.%${query}%,content.ilike.%${query}%,id.in.(${tagRuleIds.join(',')})`,
                     );
                 } else {
-                    queryBuilder = queryBuilder.or(
-                        `title.ilike.%${query}%,content.ilike.%${query}%`
-                    );
+                    queryBuilder = queryBuilder.or(`title.ilike.%${query}%,content.ilike.%${query}%`);
                 }
             }
 
@@ -153,11 +192,14 @@ export class SupabaseService {
      */
     public async getTags() {
         try {
-            const { data, error } = await this.client
-                .from('tags')
-                .select('*')
-                .eq('is_archived', false)
-                .eq('is_private', false);
+            let queryBuilder = this.client.from('tags').select('*').eq('is_archived', false);
+
+            // Only include private tags if the user is authenticated
+            if (!this.isAuthenticated) {
+                queryBuilder = queryBuilder.eq('is_private', false);
+            }
+
+            const { data, error } = await queryBuilder;
 
             if (error) {
                 throw error;
@@ -175,11 +217,14 @@ export class SupabaseService {
      */
     public async getTools() {
         try {
-            const { data, error } = await this.client
-                .from('tools')
-                .select('*')
-                .eq('is_archived', false)
-                .eq('is_private', false);
+            let queryBuilder = this.client.from('tools').select('*').eq('is_archived', false);
+
+            // Only include private tools if the user is authenticated
+            if (!this.isAuthenticated) {
+                queryBuilder = queryBuilder.eq('is_private', false);
+            }
+
+            const { data, error } = await queryBuilder;
 
             if (error) {
                 throw error;
@@ -199,14 +244,18 @@ export class SupabaseService {
         try {
             console.log('Fetching top upvoted rules');
 
-            const queryBuilder = this.client
+            let queryBuilder = this.client
                 .from('rules')
                 .select('*, rule_tags!inner(tag_id, tags!inner(*))', { count: 'exact' })
                 .eq('is_archived', false)
                 .eq('is_active', true)
-                .eq('is_private', false)
                 .order('upvote_count', { ascending: false })
                 .limit(limit);
+
+            // Only include private rules if the user is authenticated
+            if (!this.isAuthenticated) {
+                queryBuilder = queryBuilder.eq('is_private', false);
+            }
 
             const { data, error, count } = await queryBuilder;
 

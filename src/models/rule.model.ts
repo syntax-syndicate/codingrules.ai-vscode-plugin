@@ -87,5 +87,9 @@ export interface RuleSearchParams {
     tool_id?: string;
     page?: number;
     limit?: number;
+    /**
+     * Whether to include private rules in the search results
+     * Will only return private rules if the user is authenticated
+     */
     include_private?: boolean;
 }

@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import { Config } from './config';
 import { SupabaseService } from './services/supabase.service';
+import { AuthService } from './services/auth.service';
 import { Rule, AIToolFormat, GenericFormat } from './models/rule.model';
 import { RuleDownloaderService, RuleSaveOptions } from './services/rule-downloader.service';
 import { RulesExplorerProvider, RuleExplorerItem, RuleExplorerItemType } from './views/rules-explorer';
 import { RuleViewer } from './views/rule-viewer';
+import { LoginWebView } from './views/login-webview';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "codingrules-ai" is now active!');
@@ -15,17 +17,67 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Initialize services
         let supabaseService: SupabaseService;
+        let authService: AuthService;
+
         try {
             const supabaseConfig = config.getSupabaseConfig();
+
+            // Initialize Auth Service
+            authService = AuthService.initialize(supabaseConfig, context);
+
+            // Initialize Supabase Service
             supabaseService = SupabaseService.initialize(supabaseConfig);
+
+            // Connect auth service to supabase service
+            supabaseService.setAuthService(authService);
         } catch (error) {
-            console.error('Failed to initialize Supabase service:', error);
+            console.error('Failed to initialize services:', error);
             vscode.window.showErrorMessage(
                 `Failed to initialize CodingRules.ai: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
 
-        // Register the Rules Explorer view
+        // Register commands that the explorer view depends on
+        // These need to be registered BEFORE the explorer view is created
+
+        // Register login command
+        context.subscriptions.push(
+            vscode.commands.registerCommand('codingrules-ai.login', async () => {
+                try {
+                    // Show login web view
+                    LoginWebView.show(context, authService);
+
+                    // Once login is successful, refresh the Explorer view
+                    // This is handled by the LoginWebView itself to refresh after login
+                    // The authService notifies about login success
+                } catch (error) {
+                    vscode.window.showErrorMessage(
+                        `Login failed: ${error instanceof Error ? error.message : String(error)}`,
+                    );
+                }
+            }),
+        );
+
+        // Register view profile command
+        context.subscriptions.push(
+            vscode.commands.registerCommand('codingrules-ai.viewProfile', async () => {
+                if (authService.isAuthenticated) {
+                    const user = authService.currentUser;
+                    vscode.window.showInformationMessage(`Logged in as ${user?.email || 'unknown user'}`);
+                } else {
+                    const result = await vscode.window.showInformationMessage(
+                        'You are not logged in. Private rules and features are not available.',
+                        'Login Now',
+                    );
+
+                    if (result === 'Login Now') {
+                        vscode.commands.executeCommand('codingrules-ai.login');
+                    }
+                }
+            }),
+        );
+
+        // Register the Rules Explorer view after the login command is registered
         const rulesExplorerProvider = new RulesExplorerProvider(context);
         const rulesExplorer = vscode.window.createTreeView('codingrulesExplorer', {
             treeDataProvider: rulesExplorerProvider,
@@ -33,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
         context.subscriptions.push(rulesExplorer);
 
-        // Register command to refresh the Rules Explorer
+        // Register the refresh command for the explorer view
         context.subscriptions.push(
             vscode.commands.registerCommand('codingrules-ai.refreshExplorer', () => {
                 rulesExplorerProvider.refreshData();
@@ -99,17 +151,37 @@ export function activate(context: vscode.ExtensionContext) {
 
                     // Check if format was provided (e.g., from rule viewer)
                     let format = (rule as any).selectedFormat;
-                    
+
                     // If no format provided, ask user to select one
                     if (!format) {
                         const formatOptions = [
                             // AI Tool formats
-                            { label: 'Cursor (.cursorrules)', format: AIToolFormat.CURSOR, description: 'Creates .cursorrules file' },
-                            { label: 'Windsurf (.windsurfrules)', format: AIToolFormat.WINDSURF, description: 'Creates .windsurfrules file' },
-                            { label: 'Cline (.clinerules)', format: AIToolFormat.CLINE, description: 'Creates .clinerules file' },
-                            { label: 'GitHub Copilot (copilot-instructions.md)', format: AIToolFormat.GITHUB_COPILOT, description: 'Creates copilot-instructions.md file' },
+                            {
+                                label: 'Cursor (.cursorrules)',
+                                format: AIToolFormat.CURSOR,
+                                description: 'Creates .cursorrules file',
+                            },
+                            {
+                                label: 'Windsurf (.windsurfrules)',
+                                format: AIToolFormat.WINDSURF,
+                                description: 'Creates .windsurfrules file',
+                            },
+                            {
+                                label: 'Cline (.clinerules)',
+                                format: AIToolFormat.CLINE,
+                                description: 'Creates .clinerules file',
+                            },
+                            {
+                                label: 'GitHub Copilot (copilot-instructions.md)',
+                                format: AIToolFormat.GITHUB_COPILOT,
+                                description: 'Creates copilot-instructions.md file',
+                            },
                             // Generic formats
-                            { label: 'Markdown', format: GenericFormat.MD, description: 'Creates [rule-title].md file' },
+                            {
+                                label: 'Markdown',
+                                format: GenericFormat.MD,
+                                description: 'Creates [rule-title].md file',
+                            },
                             { label: 'Text', format: GenericFormat.TXT, description: 'Creates [rule-title].txt file' },
                         ];
 
@@ -120,13 +192,13 @@ export function activate(context: vscode.ExtensionContext) {
                         if (!selectedFormat) {
                             return; // User cancelled
                         }
-                        
+
                         format = selectedFormat.format;
                     }
 
                     // Create downloader instance
                     const downloader = new RuleDownloaderService();
-                    
+
                     // Generate the file path based on format type
                     let filePath: string;
                     if (Object.values(AIToolFormat).includes(format as AIToolFormat)) {
@@ -160,15 +232,15 @@ export function activate(context: vscode.ExtensionContext) {
                     // Validate rule has required properties
                     if (!rule.title) {
                         vscode.window.showErrorMessage(
-                            `Cannot download rule: Missing title information. Please try another rule.`
+                            `Cannot download rule: Missing title information. Please try another rule.`,
                         );
                         return;
                     }
-                    
+
                     // Validate rule content before attempting to download
                     if (!rule.content) {
                         vscode.window.showErrorMessage(
-                            `Cannot download rule "${rule.title}": Rule content is empty or missing. Please try another rule.`
+                            `Cannot download rule "${rule.title}": Rule content is empty or missing. Please try another rule.`,
                         );
                         return;
                     }
@@ -190,7 +262,7 @@ export function activate(context: vscode.ExtensionContext) {
                 } catch (error) {
                     if (error instanceof Error && error.message.includes('Rule content is undefined')) {
                         vscode.window.showErrorMessage(
-                            `Failed to download rule: The selected rule has no content. Please try another rule.`
+                            `Failed to download rule: The selected rule has no content. Please try another rule.`,
                         );
                     } else {
                         vscode.window.showErrorMessage(
@@ -233,6 +305,29 @@ export function activate(context: vscode.ExtensionContext) {
                 await vscode.commands.executeCommand('workbench.action.openSettings', 'codingrules-ai');
             }),
         );
+
+        // Login command is already registered above
+
+        // Register logout command
+        context.subscriptions.push(
+            vscode.commands.registerCommand('codingrules-ai.logout', async () => {
+                try {
+                    // Log out the user
+                    await authService.logout();
+
+                    // Refresh the Explorer view to update based on auth state
+                    rulesExplorerProvider.refreshData();
+
+                    vscode.window.showInformationMessage('Successfully logged out');
+                } catch (error) {
+                    vscode.window.showErrorMessage(
+                        `Logout failed: ${error instanceof Error ? error.message : String(error)}`,
+                    );
+                }
+            }),
+        );
+
+        // View profile command is already registered above
     } catch (error) {
         console.error('Error activating codingrules-ai extension:', error);
         vscode.window.showErrorMessage(
