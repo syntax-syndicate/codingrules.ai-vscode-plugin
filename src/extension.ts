@@ -8,6 +8,42 @@ import { RulesExplorerProvider, RuleExplorerItem, RuleExplorerItemType } from '.
 import { RuleViewer } from './views/rule-viewer';
 import * as crypto from 'crypto';
 
+/**
+ * Detects which editor/IDE the extension is running in and returns the appropriate URI protocol.
+ * This allows the authentication callback to work properly across different VS Code-based editors.
+ */
+function getEditorProtocol(): string {
+    // Get the application name from VS Code's environment
+    const appName = vscode.env.appName || '';
+
+    // Check if we're running in Electron (which includes VS Code and most VS Code-based IDEs)
+    if (appName) {
+        // Convert to lowercase for consistent matching
+        const appNameLower = appName.toLowerCase();
+
+        // Handle specific known cases
+        if (appNameLower.includes('vs code insiders')) {
+            return 'vscode-insiders://';
+        } else if (appNameLower.includes('cursor')) {
+            return 'cursor://';
+        } else if (appNameLower.includes('windsurf')) {
+            return 'windsurf://';
+        } else if (appNameLower.includes('codium')) {
+            return 'codium://';
+        }
+
+        // Extract the first word of the app name as a fallback protocol
+        // This handles unknown VS Code-based editors by using their name as the protocol
+        const firstWord = appNameLower.split(' ')[0].trim();
+        if (firstWord && !firstWord.includes('/') && !firstWord.includes('\\')) {
+            return `${firstWord}://`;
+        }
+    }
+
+    // Default to vscode:// as the fallback protocol
+    return 'vscode://';
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "codingrules-ai" is now active!');
 
@@ -97,8 +133,11 @@ export function activate(context: vscode.ExtensionContext) {
                     // Store the state in extension storage for later verification
                     await context.globalState.update('codingrules.authState', state);
 
+                    // Determine the correct protocol based on the editor
+                    const editorProtocol = getEditorProtocol();
+
                     // Redirect to web app with state parameter
-                    const webAppUrl = `https://codingrules.ai/auth/extension?redirect=${encodeURIComponent('vscode://' + context.extension.id + '/auth/callback')}&state=${encodeURIComponent(state)}`;
+                    const webAppUrl = `https://codingrules.ai/auth/extension?redirect=${encodeURIComponent(editorProtocol + context.extension.id + '/auth/callback')}&state=${encodeURIComponent(state)}`;
                     await vscode.env.openExternal(vscode.Uri.parse(webAppUrl));
                     vscode.window.showInformationMessage('Redirecting to the CodingRules.ai login page...');
                 } catch (error) {
