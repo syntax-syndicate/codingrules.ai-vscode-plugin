@@ -214,15 +214,24 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             this.isLoading = true;
             this.refresh();
 
-            // Check authentication status
-            this.showPrivateContent = false;
-
+            // Check authentication status - forcefully get the current instance
             try {
-                if (this.authService) {
-                    this.showPrivateContent = this.authService.isAuthenticated;
+                // Force get the updated instance instead of using the cached one
+                this.authService = AuthService.getInstance();
+
+                // Explicitly check authentication status
+                this.showPrivateContent = this.authService.isAuthenticated;
+                console.log(
+                    'Authentication status checked:',
+                    this.showPrivateContent ? 'Authenticated' : 'Not authenticated',
+                );
+
+                if (this.authService.currentUser) {
+                    console.log('Current user email:', this.authService.currentUser.email);
                 }
             } catch (e) {
-                console.log('Could not check auth status', e);
+                console.error('Could not check auth status', e);
+                this.showPrivateContent = false;
             }
 
             // Fetch data in parallel, including private content if authenticated
@@ -242,7 +251,8 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             this.tools = tools;
 
             this.isLoading = false;
-            this.refresh();
+            // Force a complete refresh
+            this._onDidChangeTreeData.fire();
         } catch (error) {
             this.isLoading = false;
             console.error('Error refreshing data:', error);

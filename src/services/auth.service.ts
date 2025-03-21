@@ -16,7 +16,10 @@ export class AuthService {
     private constructor(config: SupabaseConfig, context: vscode.ExtensionContext) {
         this.client = createClient<Database>(config.url, config.anonKey);
         this.context = context;
-        this.loadSession();
+        // Initialize and load any existing session
+        this.loadSession().catch((error) => {
+            console.error('Error loading session during initialization:', error);
+        });
     }
 
     /**
@@ -119,23 +122,59 @@ export class AuthService {
     }
 
     /**
+     * Set the session from external tokens (used for web app redirect auth)
+     */
+    public async setSessionFromTokens(accessToken: string, refreshToken: string): Promise<void> {
+        try {
+            // Set the session in the Supabase client
+            const { data, error } = await this.client.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            if (data?.user) {
+                this._currentUser = data.user;
+                await this.saveSession();
+            } else {
+                throw new Error('No user data returned from session');
+            }
+        } catch (error) {
+            console.error('Error setting session from tokens:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Load saved session from storage
      */
     private async loadSession(): Promise<void> {
         try {
             // Attempt to restore session from storage
-            const savedSession = await this.context.secrets.get(this.SESSION_KEY);
+            const savedAccessToken = await this.context.secrets.get(this.SESSION_KEY + '.access');
+            const savedRefreshToken = await this.context.secrets.get(this.SESSION_KEY + '.refresh');
 
-            if (savedSession) {
+            if (savedAccessToken && savedRefreshToken) {
                 // Set the session in the Supabase client
-                await this.client.auth.setSession({
-                    access_token: savedSession,
-                    refresh_token: '',
+                const { data, error } = await this.client.auth.setSession({
+                    access_token: savedAccessToken,
+                    refresh_token: savedRefreshToken,
                 });
 
+                if (error) {
+                    console.error('Error restoring session:', error);
+                    await this.clearSession();
+                    return;
+                }
+
                 // Get the user from the session
-                const { data } = await this.client.auth.getUser();
-                this._currentUser = data.user;
+                if (data?.user) {
+                    this._currentUser = data.user;
+                    console.log('Session loaded successfully for user:', data.user.email);
+                }
             }
         } catch (error) {
             console.error('Error loading session:', error);
@@ -155,7 +194,10 @@ export class AuthService {
         try {
             const { data } = await this.client.auth.getSession();
             if (data.session) {
-                await this.context.secrets.store(this.SESSION_KEY, data.session.access_token);
+                // Store both tokens separately
+                await this.context.secrets.store(this.SESSION_KEY + '.access', data.session.access_token);
+                await this.context.secrets.store(this.SESSION_KEY + '.refresh', data.session.refresh_token);
+                console.log('Session saved successfully for user:', this._currentUser.email);
             }
         } catch (error) {
             console.error('Error saving session:', error);
@@ -167,7 +209,8 @@ export class AuthService {
      */
     private async clearSession(): Promise<void> {
         try {
-            await this.context.secrets.delete(this.SESSION_KEY);
+            await this.context.secrets.delete(this.SESSION_KEY + '.access');
+            await this.context.secrets.delete(this.SESSION_KEY + '.refresh');
         } catch (error) {
             console.error('Error clearing session:', error);
         }

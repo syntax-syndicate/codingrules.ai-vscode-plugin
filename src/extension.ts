@@ -6,7 +6,7 @@ import { Rule, AIToolFormat, GenericFormat } from './models/rule.model';
 import { RuleDownloaderService, RuleSaveOptions } from './services/rule-downloader.service';
 import { RulesExplorerProvider, RuleExplorerItem, RuleExplorerItemType } from './views/rules-explorer';
 import { RuleViewer } from './views/rule-viewer';
-import { LoginWebView } from './views/login-webview';
+import * as crypto from 'crypto';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "codingrules-ai" is now active!');
@@ -37,6 +37,53 @@ export function activate(context: vscode.ExtensionContext) {
             );
         }
 
+        // Register the URI handler for auth callbacks from web app
+        context.subscriptions.push(
+            vscode.window.registerUriHandler({
+                async handleUri(uri: vscode.Uri): Promise<void> {
+                    if (uri.path === '/auth/callback') {
+                        // Extract token from the query parameters
+                        const params = new URLSearchParams(uri.query);
+                        const accessToken = params.get('access_token');
+                        const refreshToken = params.get('refresh_token');
+                        const state = params.get('state');
+
+                        // Verify the state parameter to prevent CSRF attacks
+                        const storedState = context.globalState.get('codingrules.authState');
+
+                        if (!state || state !== storedState) {
+                            vscode.window.showErrorMessage('Authentication failed: Invalid state parameter');
+                            return;
+                        }
+
+                        // Clear the stored state after verification
+                        context.globalState.update('codingrules.authState', undefined);
+
+                        if (accessToken) {
+                            try {
+                                // Set the session with the received tokens
+                                await authService.setSessionFromTokens(accessToken, refreshToken || '');
+
+                                // Explicitly refresh the explorer to update UI
+                                await vscode.commands.executeCommand('codingrules-ai.refreshExplorer');
+
+                                // Show success message after refresh
+                                vscode.window.showInformationMessage('Successfully logged in to CodingRules.ai');
+                            } catch (error) {
+                                console.error('Error during authentication process:', error);
+                                vscode.window.showErrorMessage(
+                                    `Authentication failed: ${error instanceof Error ? error.message : String(error)}`,
+                                );
+                            }
+                        } else {
+                            vscode.window.showErrorMessage('Authentication failed: No access token received');
+                        }
+                    }
+                    return;
+                },
+            }),
+        );
+
         // Register commands that the explorer view depends on
         // These need to be registered BEFORE the explorer view is created
 
@@ -44,12 +91,16 @@ export function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             vscode.commands.registerCommand('codingrules-ai.login', async () => {
                 try {
-                    // Show login web view
-                    LoginWebView.show(context, authService);
+                    // Generate a secure random state parameter to prevent CSRF attacks
+                    const state = crypto.randomBytes(32).toString('hex');
 
-                    // Once login is successful, refresh the Explorer view
-                    // This is handled by the LoginWebView itself to refresh after login
-                    // The authService notifies about login success
+                    // Store the state in extension storage for later verification
+                    await context.globalState.update('codingrules.authState', state);
+
+                    // Redirect to web app with state parameter
+                    const webAppUrl = `https://codingrules.ai/auth/extension?redirect=${encodeURIComponent('vscode://' + context.extension.id + '/auth/callback')}&state=${encodeURIComponent(state)}`;
+                    await vscode.env.openExternal(vscode.Uri.parse(webAppUrl));
+                    vscode.window.showInformationMessage('Redirecting to the CodingRules.ai login page...');
                 } catch (error) {
                     vscode.window.showErrorMessage(
                         `Login failed: ${error instanceof Error ? error.message : String(error)}`,

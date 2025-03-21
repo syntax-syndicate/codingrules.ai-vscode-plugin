@@ -31,6 +31,13 @@
         "team collaboration"
     ],
     "main": "./dist/extension.js",
+    "capabilities": {
+        "virtualWorkspaces": true,
+        "untrustedWorkspaces": {
+            "supported": true
+        },
+        "uriHandler": true
+    },
     "contributes": {
         "commands": [
             {
