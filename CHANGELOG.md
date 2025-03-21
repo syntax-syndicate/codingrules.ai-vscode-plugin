@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.1](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.4.0...v0.4.1) (2025-03-21)
+
+### Features
+
+- enhance authentication service with session management and user state tracking ([05c8773](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/05c877320757639a2a8703c4139b108d3ce2f526))
+- implement dynamic URI protocol detection for various VS Code-based editors ([0eead95](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/0eead955db0fc4a3f93c281d9a1fffe998d31173))
+- improve authentication flow and service integration ([2604c57](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/2604c577df7db8969a9f442c69c8f928453a39ee))
+
 ## [0.4.0](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.3.2...v0.4.0) (2025-03-21)
 
 ### Features
