@@ -170,10 +170,15 @@ export class SupabaseService {
         // Extract tags from rule_tags join
         const tags = data.rule_tags?.map((rt: any) => rt.tags) || [];
 
+        // Ensure content is never undefined
+        if (data.content === undefined) {
+            console.warn(`Rule ${data.id} (${data.title}) has undefined content`);
+        }
+
         return {
             id: data.id,
             title: data.title,
-            content: data.content,
+            content: data.content || '', // Provide empty string as fallback
             author_id: data.author_id,
             slug: data.slug,
             created_at: data.created_at,

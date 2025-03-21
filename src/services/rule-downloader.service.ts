@@ -36,10 +36,20 @@ export class RuleDownloaderService {
                 filePath = path.join(directory, `${format}`);
             } else {
                 // For generic formats, use the title + extension
+                if (!rule.title) {
+                    console.error('Cannot download rule: title is undefined', rule);
+                    throw new Error('Rule title is undefined. Cannot generate filename.');
+                }
                 const fileName = rule.slug || this.sanitizeFileName(rule.title);
                 filePath = path.join(directory, `${fileName}${format}`);
             }
 
+            // Validate rule content exists
+            if (!rule.content) {
+                console.error('Cannot download rule: content is undefined', rule);
+                throw new Error('Rule content is undefined. Cannot download empty rule.');
+            }
+            
             // Check if file exists
             const fileExists = fs.existsSync(filePath);
 
@@ -82,7 +92,10 @@ export class RuleDownloaderService {
     /**
      * Sanitize a string to be used as a file name
      */
-    public sanitizeFileName(name: string): string {
+    public sanitizeFileName(name: string | undefined | null): string {
+        if (!name) {
+            return 'untitled-rule';
+        }
         // Replace spaces with hyphens and remove special characters
         return name
             .toLowerCase()

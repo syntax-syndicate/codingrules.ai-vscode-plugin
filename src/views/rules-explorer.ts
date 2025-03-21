@@ -75,12 +75,85 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             const supabaseConfig = config.getSupabaseConfig();
             this.supabaseService = SupabaseService.initialize(supabaseConfig);
             this.refreshData();
+
+            // Register command handlers
+            context.subscriptions.push(
+                vscode.commands.registerCommand('codingrules-ai.downloadRule', async (item?: RuleExplorerItem | Rule) => {
+                    // If this is a tree item from the explorer, validate and extract the rule data
+                    if (item instanceof RuleExplorerItem) {
+                        if (item.type !== RuleExplorerItemType.RULE || !item.data) {
+                            vscode.window.showErrorMessage('Cannot download: Selected item is not a valid rule.');
+                            return;
+                        }
+                        
+                        // Ensure we have a complete rule object with all required data
+                        const rule = item.data as Rule;
+                        const completeRule = await this.ensureCompleteRule(rule);
+                        
+                        if (!completeRule) {
+                            return; // Error already shown to user
+                        }
+                        
+                        // Use the command with the validated rule
+                        vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', completeRule);
+                    } else {
+                        // If it's already a Rule object (e.g., from the details view), pass it through
+                        vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', item);
+                    }
+                })
+            );
         } catch (error) {
             console.error('Failed to initialize RulesExplorerProvider:', error);
             vscode.window.showErrorMessage(
                 `Failed to initialize CodingRules.ai: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
+    }
+
+    /**
+     * Ensure we have a complete rule with all required data before download
+     */
+    private async ensureCompleteRule(rule: Rule): Promise<Rule | null> {
+        // Check if we have the necessary data to download
+        if (!rule.id) {
+            vscode.window.showErrorMessage('Cannot download rule: Missing rule ID.');
+            return null;
+        }
+
+        // Check if title exists
+        if (!rule.title) {
+            vscode.window.showErrorMessage('Cannot download rule: Missing title information.');
+            return null;
+        }
+
+        // Check if content exists
+        if (!rule.content) {
+            try {
+                // Try to fetch the complete rule from the database
+                console.log(`Fetching complete rule data for ${rule.id}`);
+                const completeRule = await this.supabaseService.getRule(rule.id);
+                
+                if (!completeRule) {
+                    vscode.window.showErrorMessage('Cannot download rule: Unable to fetch rule details.');
+                    return null;
+                }
+                
+                if (!completeRule.content) {
+                    vscode.window.showErrorMessage(`Cannot download rule "${rule.title}": Rule has no content.`);
+                    return null;
+                }
+                
+                return completeRule;
+            } catch (error) {
+                console.error('Error fetching complete rule:', error);
+                vscode.window.showErrorMessage(
+                    `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`
+                );
+                return null;
+            }
+        }
+        
+        return rule;
     }
 
     refresh(): void {

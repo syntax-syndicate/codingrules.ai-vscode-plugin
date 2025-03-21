@@ -80,51 +80,29 @@ export class RuleViewer {
      */
     private async downloadRule(format: AIToolFormat): Promise<void> {
         try {
-            const workspaceFolder = RuleDownloaderService.getWorkspaceFolder();
-
-            if (!workspaceFolder) {
-                throw new Error('No workspace folder open');
+            // Validate rule has required properties
+            if (!this.rule.title) {
+                vscode.window.showErrorMessage(
+                    `Cannot download rule: Missing title information. Please try another rule.`
+                );
+                return;
             }
-
-            // Ask user if they want to replace existing file if it exists
-            const downloader = new RuleDownloaderService();
-            const saveOptions: RuleSaveOptions = {
-                directory: workspaceFolder,
-                format: format as AIToolFormat,
+            
+            // Validate rule content before attempting to download
+            if (!this.rule.content) {
+                vscode.window.showErrorMessage(
+                    `Cannot download rule "${this.rule.title}": Rule content is empty or missing. Please try another rule.`
+                );
+                return;
+            }
+            
+            // Use our centralized download command with the format (this will add format to the rule object)
+            const ruleWithFormat = {
+                ...this.rule,
+                selectedFormat: format
             };
-
-            // Show quick pick for replace or merge
-            if (format) {
-                const fileName = this.rule.slug || new RuleDownloaderService().sanitizeFileName(this.rule.title);
-                const filePath = `${workspaceFolder}/${fileName}${format}`;
-
-                try {
-                    const fs = require('fs');
-                    if (fs.existsSync(filePath)) {
-                        const choice = await vscode.window.showQuickPick(
-                            ['Replace existing file', 'Merge with existing content'],
-                            { placeHolder: 'File already exists. How would you like to proceed?' },
-                        );
-
-                        if (!choice) {
-                            return; // User cancelled
-                        }
-
-                        saveOptions.replaceExisting = choice === 'Replace existing file';
-                    }
-                } catch (error) {
-                    // Ignore file check errors
-                }
-            }
-
-            // Download the rule
-            const filePath = await downloader.downloadRule(this.rule, saveOptions);
-
-            vscode.window.showInformationMessage(`Rule downloaded to: ${filePath}`);
-
-            // Open the file
-            const document = await vscode.workspace.openTextDocument(filePath);
-            await vscode.window.showTextDocument(document);
+            
+            await vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', ruleWithFormat);
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,

@@ -82,9 +82,9 @@ export function activate(context: vscode.ExtensionContext) {
             }),
         );
 
-        // Register command to download a rule
+        // Register command to download a rule (internal, called after validation)
         context.subscriptions.push(
-            vscode.commands.registerCommand('codingrules-ai.downloadRule', async (rule?: Rule) => {
+            vscode.commands.registerCommand('codingrules-ai.downloadRuleInternal', async (rule?: Rule) => {
                 try {
                     // If no rule provided, show search to select one
                     if (!rule) {
@@ -97,24 +97,31 @@ export function activate(context: vscode.ExtensionContext) {
                         throw new Error('No workspace folder open');
                     }
 
-                    // Ask user to select format
-                    const formatOptions = [
-                        // AI Tool formats
-                        { label: 'Cursor (.cursorrules)', format: AIToolFormat.CURSOR, description: 'Creates .cursorrules file' },
-                        { label: 'Windsurf (.windsurfrules)', format: AIToolFormat.WINDSURF, description: 'Creates .windsurfrules file' },
-                        { label: 'Cline (.clinerules)', format: AIToolFormat.CLINE, description: 'Creates .clinerules file' },
-                        { label: 'GitHub Copilot (copilot-instructions.md)', format: AIToolFormat.GITHUB_COPILOT, description: 'Creates copilot-instructions.md file' },
-                        // Generic formats
-                        { label: 'Markdown', format: GenericFormat.MD, description: 'Creates [rule-title].md file' },
-                        { label: 'Text', format: GenericFormat.TXT, description: 'Creates [rule-title].txt file' },
-                    ];
+                    // Check if format was provided (e.g., from rule viewer)
+                    let format = (rule as any).selectedFormat;
+                    
+                    // If no format provided, ask user to select one
+                    if (!format) {
+                        const formatOptions = [
+                            // AI Tool formats
+                            { label: 'Cursor (.cursorrules)', format: AIToolFormat.CURSOR, description: 'Creates .cursorrules file' },
+                            { label: 'Windsurf (.windsurfrules)', format: AIToolFormat.WINDSURF, description: 'Creates .windsurfrules file' },
+                            { label: 'Cline (.clinerules)', format: AIToolFormat.CLINE, description: 'Creates .clinerules file' },
+                            { label: 'GitHub Copilot (copilot-instructions.md)', format: AIToolFormat.GITHUB_COPILOT, description: 'Creates copilot-instructions.md file' },
+                            // Generic formats
+                            { label: 'Markdown', format: GenericFormat.MD, description: 'Creates [rule-title].md file' },
+                            { label: 'Text', format: GenericFormat.TXT, description: 'Creates [rule-title].txt file' },
+                        ];
 
-                    const selectedFormat = await vscode.window.showQuickPick(formatOptions, {
-                        placeHolder: 'Select the format to download the rule as',
-                    });
+                        const selectedFormat = await vscode.window.showQuickPick(formatOptions, {
+                            placeHolder: 'Select the format to download the rule as',
+                        });
 
-                    if (!selectedFormat) {
-                        return; // User cancelled
+                        if (!selectedFormat) {
+                            return; // User cancelled
+                        }
+                        
+                        format = selectedFormat.format;
                     }
 
                     // Create downloader instance
@@ -122,13 +129,13 @@ export function activate(context: vscode.ExtensionContext) {
                     
                     // Generate the file path based on format type
                     let filePath: string;
-                    if (Object.values(AIToolFormat).includes(selectedFormat.format as AIToolFormat)) {
+                    if (Object.values(AIToolFormat).includes(format as AIToolFormat)) {
                         // For tool-specific formats, use just the extension
-                        filePath = `${workspaceFolder}/${selectedFormat.format}`;
+                        filePath = `${workspaceFolder}/${format}`;
                     } else {
                         // For generic formats, use title + extension
                         const fileName = rule.slug || downloader.sanitizeFileName(rule.title);
-                        filePath = `${workspaceFolder}/${fileName}${selectedFormat.format}`;
+                        filePath = `${workspaceFolder}/${fileName}${format}`;
                     }
                     let replaceExisting = false;
 
@@ -150,10 +157,26 @@ export function activate(context: vscode.ExtensionContext) {
                         // Ignore file check errors
                     }
 
+                    // Validate rule has required properties
+                    if (!rule.title) {
+                        vscode.window.showErrorMessage(
+                            `Cannot download rule: Missing title information. Please try another rule.`
+                        );
+                        return;
+                    }
+                    
+                    // Validate rule content before attempting to download
+                    if (!rule.content) {
+                        vscode.window.showErrorMessage(
+                            `Cannot download rule "${rule.title}": Rule content is empty or missing. Please try another rule.`
+                        );
+                        return;
+                    }
+
                     // Download the rule
                     const saveOptions: RuleSaveOptions = {
                         directory: workspaceFolder,
-                        format: selectedFormat.format,
+                        format: format,
                         replaceExisting,
                     };
 
@@ -165,9 +188,15 @@ export function activate(context: vscode.ExtensionContext) {
                     const document = await vscode.workspace.openTextDocument(savedPath);
                     await vscode.window.showTextDocument(document);
                 } catch (error) {
-                    vscode.window.showErrorMessage(
-                        `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,
-                    );
+                    if (error instanceof Error && error.message.includes('Rule content is undefined')) {
+                        vscode.window.showErrorMessage(
+                            `Failed to download rule: The selected rule has no content. Please try another rule.`
+                        );
+                    } else {
+                        vscode.window.showErrorMessage(
+                            `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,
+                        );
+                    }
                 }
             }),
         );
