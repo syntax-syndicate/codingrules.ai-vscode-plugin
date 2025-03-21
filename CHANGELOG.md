@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.3.2](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.3.1...v0.3.2) (2025-03-21)
+
+### Features
+
+- implement user authentication features with login, logout, and profile viewing capabilities ([880dcfd](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/880dcfd4eac1ea1662a43a579c9ac85c0893e513))
+
+### Refactors
+
+- remove Supabase configuration command from extension ([4f8798a](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/4f8798a74a6dd511d0e9a7515d6369011543c74c))
+
 ### [0.3.1](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.3.0...v0.3.1) (2025-03-21)
 
 ## [0.3.0](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.2.0...v0.3.0) (2025-03-21)
