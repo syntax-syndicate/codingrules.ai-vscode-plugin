@@ -46,6 +46,14 @@ export class AuthHandler {
         this.context.subscriptions.push(
             vscode.commands.registerCommand('codingrules-ai.viewProfile', this.handleViewProfileCommand.bind(this)),
         );
+
+        // Register command to force refresh private rules
+        this.context.subscriptions.push(
+            vscode.commands.registerCommand(
+                'codingrules-ai.forceRefreshPrivateRules',
+                this.handleForceRefreshPrivateRules.bind(this),
+            ),
+        );
     }
 
     /**
@@ -148,6 +156,61 @@ export class AuthHandler {
     }
 
     /**
+     * Handle force refreshing private rules when they are not visible
+     */
+    private async handleForceRefreshPrivateRules(): Promise<void> {
+        try {
+            this.logger.info('Force refreshing private rules and authentication state', 'AuthHandler');
+
+            // Show progress notification
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Refreshing private rules...',
+                    cancellable: false,
+                },
+                async (progress) => {
+                    // Step 1: Force refresh the authentication state
+                    progress.report({ message: 'Refreshing authentication state...' });
+                    await this.authService.refreshCurrentUser();
+
+                    // Log the current auth state after refresh
+                    const isAuthenticated = this.authService.isAuthenticated;
+                    const userId = this.authService.currentUser?.id;
+                    this.logger.info(
+                        `Auth state after refresh: authenticated=${isAuthenticated}, userId=${userId || 'null'}`,
+                        'AuthHandler',
+                    );
+
+                    if (!isAuthenticated) {
+                        // If not authenticated, try to re-authenticate
+                        vscode.window
+                            .showWarningMessage('Not authenticated. Please log in to see private rules.', 'Login')
+                            .then((selection) => {
+                                if (selection === 'Login') {
+                                    vscode.commands.executeCommand('codingrules-ai.login');
+                                }
+                            });
+                        return;
+                    }
+
+                    // Step 2: Refresh the explorer view to update the UI with private rules
+                    progress.report({ message: 'Refreshing rules explorer...' });
+                    await vscode.commands.executeCommand('codingrules-ai.refreshExplorer');
+
+                    // Show success message
+                    vscode.window.showInformationMessage(`Successfully refreshed private rules for user ${userId}`);
+                },
+            );
+        } catch (error) {
+            this.logger.error('Error force refreshing private rules', error, 'AuthHandler');
+            vscode.window.showErrorMessage(
+                `Error refreshing private rules: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
+    }
+
+    /**
      * Handle authentication callback URI from web app
      */
     private async handleAuthCallback(uri: vscode.Uri): Promise<void> {
@@ -174,6 +237,10 @@ export class AuthHandler {
                 try {
                     // Set the session with the received tokens
                     await this.authService.setSessionFromTokens(accessToken, refreshToken || '');
+
+                    // Log the user ID immediately after login
+                    const userId = this.authService.currentUser?.id;
+                    this.logger.info(`User authenticated with ID: ${userId || 'unknown'}`, 'AuthHandler');
 
                     // Explicitly refresh the explorer to update UI
                     await vscode.commands.executeCommand('codingrules-ai.refreshExplorer');

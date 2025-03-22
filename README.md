@@ -22,7 +22,19 @@ This extension allows you to search, browse, and download rules from [CodingRule
 1. Install the extension from the VS Code Marketplace
 2. The extension comes pre-configured with Supabase credentials
 
-    > **Note:** If you want to use your own Supabase instance, you can configure it in settings:
+    > **Note:** If you want to use your own Supabase instance, you have two options:
+    >
+    > **Option 1: Using Environment Variables (Recommended)**
+    >
+    > - Create a `.env` file in the extension root directory (you can copy from `.env.example`)
+    > - Set the following variables:
+    >     ```
+    >     SUPABASE_URL=your-supabase-url
+    >     SUPABASE_ANON_KEY=your-supabase-anon-key
+    >     ```
+    > - Rebuild the extension with `npm run compile`
+    >
+    > **Option 2: Using Settings**
     >
     > - Go to Settings > Extensions > CodingRules.ai
     > - Enter your Supabase URL and Anonymous Key

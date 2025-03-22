@@ -77,28 +77,80 @@ export class AuthService {
     }
 
     /**
-     * Refresh the current user's data
+     * Refresh the current user's data and session
      */
     public async refreshCurrentUser(): Promise<void> {
         try {
-            const { data, error } = await this.client.auth.getUser();
+            // Get the full session to ensure we have the JWT token
+            const { data: sessionData, error: sessionError } = await this.client.auth.getSession();
 
-            if (error) {
-                throw error;
+            if (sessionError) {
+                throw sessionError;
             }
 
-            if (data && data.user) {
-                this._currentUser = data.user;
-                this.logger.debug('Current user refreshed', 'AuthService');
+            const session = sessionData?.session;
+            if (session && session.user) {
+                this._currentUser = session.user;
+
+                // Save the session to ensure we have the latest token
+                await this.saveSession(session);
+
+                this.logger.info(`Current user refreshed - ID: ${session.user.id}`, 'AuthService');
+                this.logger.info(`Session refreshed - Token exists: ${!!session.access_token}`, 'AuthService');
             } else {
-                this._currentUser = null;
-                this.logger.info('No user session found during refresh', 'AuthService');
+                // Fallback to getUser if session is null
+                const { data, error } = await this.client.auth.getUser();
+
+                if (error) {
+                    throw error;
+                }
+
+                if (data && data.user) {
+                    this._currentUser = data.user;
+                    this.logger.info(`Current user refreshed (no session) - ID: ${data.user.id}`, 'AuthService');
+                } else {
+                    this._currentUser = null;
+                    this.logger.info('No user session found during refresh', 'AuthService');
+                }
             }
         } catch (error) {
             this.logger.error('Error refreshing user', error, 'AuthService');
             // On refresh error, clear the current user
             this._currentUser = null;
         }
+    }
+
+    /**
+     * Get the current session
+     */
+    public async getCurrentSession(): Promise<Session | null> {
+        try {
+            // First try to load from storage for performance
+            const storedSession = await this.loadSession();
+            if (storedSession) {
+                return storedSession;
+            }
+
+            // Otherwise fetch from API
+            const { data, error } = await this.client.auth.getSession();
+
+            if (error) {
+                throw error;
+            }
+
+            return data.session;
+        } catch (error) {
+            this.logger.error('Error getting current session', error, 'AuthService');
+            return null;
+        }
+    }
+
+    /**
+     * Get the current access token
+     */
+    public async getAccessToken(): Promise<string | null> {
+        const session = await this.getCurrentSession();
+        return session?.access_token || null;
     }
 
     /**
@@ -192,11 +244,79 @@ export class AuthService {
      */
     private async saveSession(session: Session): Promise<void> {
         try {
-            const sessionData = JSON.stringify(session);
+            // Add timestamp to help with token expiration checks
+            const enhancedSession = {
+                ...session,
+                stored_at: new Date().getTime(),
+            };
+
+            const sessionData = JSON.stringify(enhancedSession);
+
+            // Log token debug info (partial token for security)
+            const tokenPreview = session.access_token ? `${session.access_token.substring(0, 10)}...` : 'null';
+            this.logger.info(`Saving session token: ${tokenPreview}`, 'AuthService');
+
+            // Save to global state
             await this.context.globalState.update('codingrules.authSession', sessionData);
+
+            // Verify it was saved correctly
+            const verifySession = await this.loadSession();
+            if (!verifySession || !verifySession.access_token) {
+                this.logger.warn('Session verification failed - token may not be saved correctly', 'AuthService');
+            }
         } catch (error) {
             this.logger.error('Error saving session', error, 'AuthService');
             throw error;
+        }
+    }
+
+    /**
+     * Force token refresh to handle expired tokens
+     */
+    public async refreshToken(): Promise<Session | null> {
+        try {
+            // Get current session
+            const session = await this.loadSession();
+
+            if (!session || !session.refresh_token) {
+                this.logger.warn('No refresh token available to refresh session', 'AuthService');
+                return null;
+            }
+
+            // Check if we need to refresh (refresh if token is older than 50 minutes)
+            const storedAt = (session as any).stored_at || 0;
+            const ageInMs = Date.now() - storedAt;
+            const needsRefresh = ageInMs > 50 * 60 * 1000; // 50 minutes
+
+            if (needsRefresh) {
+                this.logger.info('Token is stale, attempting refresh', 'AuthService');
+
+                // Attempt to refresh the session
+                const { data, error } = await this.client.auth.refreshSession({
+                    refresh_token: session.refresh_token,
+                });
+
+                if (error) {
+                    this.logger.error('Failed to refresh token', error, 'AuthService');
+                    return null;
+                }
+
+                if (data.session) {
+                    // Update the user and save the refreshed session
+                    this._currentUser = data.session.user;
+                    await this.saveSession(data.session);
+                    this.logger.info('Token successfully refreshed', 'AuthService');
+                    return data.session;
+                }
+            } else {
+                // Use existing session
+                return session;
+            }
+
+            return null;
+        } catch (error) {
+            this.logger.error('Error refreshing token', error, 'AuthService');
+            return null;
         }
     }
 

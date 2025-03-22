@@ -16,10 +16,13 @@ export async function activate(context: vscode.ExtensionContext) {
         // Initialize logger
         const logger = Logger.getInstance();
         logger.configure({
-            level: LogLevel.INFO,
-            outputToConsole: false,
-            redactSensitiveData: true,
+            level: LogLevel.DEBUG, // Set to DEBUG level to capture all logs
+            outputToConsole: true, // Output to console for development visibility
+            redactSensitiveData: false, // Show full details for debugging the auth issue
         });
+
+        // Show the log output channel to the user
+        logger.show();
 
         logger.info('Activating CodingRules.ai extension', 'Extension');
 
