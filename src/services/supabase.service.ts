@@ -306,6 +306,53 @@ export class SupabaseService {
     }
 
     /**
+     * Get private rules for the current user
+     */
+    public async getPrivateRules(limit: number = 20): Promise<RuleListResponse> {
+        try {
+            // Ensure auth state is up-to-date before proceeding
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            // If not authenticated or no user ID, return empty result
+            if (!isUserAuthenticated || !currentUserId) {
+                this.logger.debug('Not authenticated, returning empty private rules', 'SupabaseService');
+                return { rules: [], count: 0 };
+            }
+
+            this.logger.debug('Fetching private rules for authenticated user', 'SupabaseService');
+
+            let queryBuilder = this.client.from('rules').select('*, rule_tags(tag_id, tags(*))', { count: 'exact' });
+
+            // Add filter conditions
+            queryBuilder = queryBuilder
+                .eq('is_archived', false)
+                .eq('is_active', true)
+                .eq('is_private', true)
+                .eq('author_id', currentUserId);
+
+            // Order by recently updated
+            queryBuilder = queryBuilder.order('updated_at', { ascending: false }).limit(limit);
+
+            // Execute the query
+            const { data, count, error } = await queryBuilder;
+
+            if (error) {
+                this.logger.error('Supabase returned error', error, 'SupabaseService');
+                throw error;
+            }
+
+            return {
+                rules: data ? data.map((item) => this.transformRuleData(item)) : [],
+                count: count || 0,
+            };
+        } catch (error) {
+            this.logger.error('Error fetching private rules', error, 'SupabaseService');
+            return { rules: [], count: 0 };
+        }
+    }
+
+    /**
      * Get top upvoted rules
      */
     public async getTopUpvotedRules(limit: number = 20): Promise<RuleListResponse> {

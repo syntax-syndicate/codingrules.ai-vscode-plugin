@@ -45,41 +45,60 @@ export class RuleExplorerItem extends vscode.TreeItem {
                 this.iconPath = new vscode.ThemeIcon('folder');
                 break;
             case RuleExplorerItemType.RULE:
-                const rule = data as Rule;
+                if (data) {
+                    const rule = data as Rule;
 
-                // Set appropriate icon based on private status
-                if (rule?.is_private) {
-                    this.iconPath = new vscode.ThemeIcon('lock');
-                    this.tooltip = `${rule.title} (Private)`;
-                    // Add extra indication of private in the description
-                    this.description = `${rule.upvote_count?.toString() || '0'} 👍 (Private)`;
+                    // Set appropriate icon based on private status
+                    if (rule.is_private) {
+                        this.iconPath = new vscode.ThemeIcon('lock');
+                        this.tooltip = `${rule.title} (Private)`;
+                        // Add extra indication of private in the description
+                        this.description = `${rule.upvote_count?.toString() || '0'} 👍 (Private)`;
+                    } else {
+                        // Use book icon consistently for all rules
+                        this.iconPath = new vscode.ThemeIcon('book');
+                        this.tooltip = rule.title || '';
+                        this.description = `${rule.upvote_count?.toString() || '0'} 👍`;
+                    }
                 } else {
-                    // Use book icon consistently for all rules
-                    this.iconPath = new vscode.ThemeIcon('book');
-                    this.tooltip = rule?.title || '';
-                    this.description = `${rule.upvote_count?.toString() || '0'} 👍`;
+                    // For message-only items (like "No private rules found")
+                    this.iconPath = new vscode.ThemeIcon('info');
+                    this.tooltip = this.label;
+                    // No description for message-only items
                 }
                 break;
             case RuleExplorerItemType.TAG:
-                const tag = data as Tag;
-                if (tag?.is_private) {
-                    this.iconPath = new vscode.ThemeIcon('lock');
-                    this.tooltip = `${tag.description || tag.name} (Private)`;
-                    this.description = '(Private)';
+                if (data) {
+                    const tag = data as Tag;
+                    if (tag.is_private) {
+                        this.iconPath = new vscode.ThemeIcon('lock');
+                        this.tooltip = `${tag.description || tag.name} (Private)`;
+                        this.description = '(Private)';
+                    } else {
+                        this.iconPath = new vscode.ThemeIcon('tag');
+                        this.tooltip = tag.description || '';
+                    }
                 } else {
-                    this.iconPath = new vscode.ThemeIcon('tag');
-                    this.tooltip = tag?.description || '';
+                    // For message-only items (like "No tags found")
+                    this.iconPath = new vscode.ThemeIcon('info');
+                    this.tooltip = this.label;
                 }
                 break;
             case RuleExplorerItemType.TOOL:
-                const tool = data as Tool;
-                if (tool?.is_private) {
-                    this.iconPath = new vscode.ThemeIcon('lock');
-                    this.tooltip = `${tool.description || tool.name} (Private)`;
-                    this.description = '(Private)';
+                if (data) {
+                    const tool = data as Tool;
+                    if (tool.is_private) {
+                        this.iconPath = new vscode.ThemeIcon('lock');
+                        this.tooltip = `${tool.description || tool.name} (Private)`;
+                        this.description = '(Private)';
+                    } else {
+                        this.iconPath = new vscode.ThemeIcon('tools');
+                        this.tooltip = tool.description || '';
+                    }
                 } else {
-                    this.iconPath = new vscode.ThemeIcon('tools');
-                    this.tooltip = tool?.description || '';
+                    // For message-only items (like "No tools found")
+                    this.iconPath = new vscode.ThemeIcon('info');
+                    this.tooltip = this.label;
                 }
                 break;
             case RuleExplorerItemType.LOADING:
@@ -87,8 +106,19 @@ export class RuleExplorerItem extends vscode.TreeItem {
                 break;
         }
 
-        // Add context value for menus
-        this.contextValue = type;
+        // Set context value for menus
+        if (
+            !data &&
+            (type === RuleExplorerItemType.RULE ||
+                type === RuleExplorerItemType.TAG ||
+                type === RuleExplorerItemType.TOOL)
+        ) {
+            // Use a special context value for placeholder items to prevent actions from showing
+            this.contextValue = 'message';
+        } else {
+            // Regular context value for normal items
+            this.contextValue = type;
+        }
     }
 }
 
@@ -105,6 +135,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     private authService!: AuthService;
     private rules: Rule[] = [];
     private topUpvotedRules: Rule[] = [];
+    private privateRules: Rule[] = [];
     private tags: Tag[] = [];
     private tools: Tool[] = [];
     private isLoading = false;
@@ -237,6 +268,14 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             const { rules: topRules } = await this.supabaseService.getTopUpvotedRules(10);
             this.topUpvotedRules = topRules || [];
 
+            // Load private rules if authenticated
+            if (this.showPrivateContent) {
+                const { rules: privateRules } = await this.supabaseService.getPrivateRules(10);
+                this.privateRules = privateRules || [];
+            } else {
+                this.privateRules = [];
+            }
+
             // Load tags
             const tags = await this.supabaseService.getTags();
             this.tags = (tags || []).sort((a, b) => a.name.localeCompare(b.name));
@@ -311,6 +350,17 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 rootItems.push(searchResultsItem, clearSearchItem);
             } else {
                 // Root categories (only show these if no search is active)
+
+                // Add Private Rules section if authenticated
+                if (this.showPrivateContent) {
+                    const privateRulesItem = new RuleExplorerItem(
+                        RuleExplorerItemType.CATEGORY,
+                        'Private Rules',
+                        vscode.TreeItemCollapsibleState.Expanded,
+                    );
+                    rootItems.push(privateRulesItem);
+                }
+
                 const topRulesItem = new RuleExplorerItem(
                     RuleExplorerItemType.CATEGORY,
                     'Top Rules',
@@ -337,6 +387,26 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
         // Render children based on parent type
         switch (element.label) {
+            case 'Private Rules':
+                if (this.privateRules.length === 0) {
+                    return [
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            'No private rules found',
+                            vscode.TreeItemCollapsibleState.None,
+                        ),
+                    ];
+                }
+                return this.privateRules.map(
+                    (rule) =>
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            rule.title,
+                            vscode.TreeItemCollapsibleState.None,
+                            rule,
+                        ),
+                );
+
             case 'Top Rules':
                 if (this.topUpvotedRules.length === 0) {
                     return [
