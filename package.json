@@ -51,6 +51,11 @@
                 "icon": "$(cloud-download)"
             },
             {
+                "command": "codingrules-ai.copyRuleToClipboard",
+                "title": "CodingRules: Copy Rule to Clipboard",
+                "icon": "$(copy)"
+            },
+            {
                 "command": "codingrules-ai.refreshExplorer",
                 "title": "CodingRules: Refresh Explorer",
                 "icon": "$(refresh)"
@@ -102,6 +107,11 @@
             "view/item/context": [
                 {
                     "command": "codingrules-ai.viewRule",
+                    "when": "view == codingrulesExplorer && viewItem == rule",
+                    "group": "inline"
+                },
+                {
+                    "command": "codingrules-ai.copyRuleToClipboard",
                     "when": "view == codingrulesExplorer && viewItem == rule",
                     "group": "inline"
                 },

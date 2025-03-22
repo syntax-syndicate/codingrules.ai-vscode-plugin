@@ -274,6 +274,48 @@ export async function activate(context: vscode.ExtensionContext) {
             }),
         );
 
+        // Register command to copy rule to clipboard
+        context.subscriptions.push(
+            vscode.commands.registerCommand(
+                'codingrules-ai.copyRuleToClipboard',
+                async (node: RuleExplorerItem | Rule) => {
+                    try {
+                        let rule: Rule | null = null;
+
+                        // Handle different input types
+                        if (node instanceof RuleExplorerItem) {
+                            // Case 1: Input is a TreeItem from the explorer
+                            if (node.type !== RuleExplorerItemType.RULE || !node.dataId) {
+                                vscode.window.showErrorMessage('Could not copy: Item is not a rule.');
+                                return;
+                            }
+                            rule = await supabaseService.getRule(node.dataId);
+                        } else if (typeof node === 'object' && node !== null) {
+                            // Case 2: Input is a Rule object
+                            rule = node as Rule;
+                        } else {
+                            vscode.window.showErrorMessage('Invalid input for copy command.');
+                            return;
+                        }
+
+                        if (!rule) {
+                            vscode.window.showErrorMessage('Could not load rule details for copying.');
+                            return;
+                        }
+
+                        // Copy rule content to clipboard
+                        await vscode.env.clipboard.writeText(rule.content);
+                        vscode.window.showInformationMessage(`Rule "${rule.title}" copied to clipboard.`);
+                    } catch (error) {
+                        logger.error('Error copying rule to clipboard', error, 'Extension');
+                        vscode.window.showErrorMessage(
+                            `Failed to copy rule: ${error instanceof Error ? error.message : String(error)}`,
+                        );
+                    }
+                },
+            ),
+        );
+
         logger.info('CodingRules.ai extension activated successfully', 'Extension');
     } catch (error) {
         const logger = Logger.getInstance();
