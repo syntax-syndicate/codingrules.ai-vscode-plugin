@@ -110,6 +110,9 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     private isLoading = false;
     private showPrivateContent = false;
     private logger: Logger = Logger.getInstance();
+    private searchResults: Rule[] = [];
+    private isSearchActive = false;
+    private searchQuery = '';
 
     constructor(context: vscode.ExtensionContext) {
         try {
@@ -285,26 +288,49 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 rootItems.push(loginItem);
             }
 
-            // Root categories
-            const topRulesItem = new RuleExplorerItem(
-                RuleExplorerItemType.CATEGORY,
-                'Top Rules',
-                vscode.TreeItemCollapsibleState.Expanded,
-            );
+            // Display search results if there is an active search
+            if (this.isSearchActive) {
+                const searchResultsItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    `Search Results for "${this.searchQuery}"`,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                );
 
-            const tagsItem = new RuleExplorerItem(
-                RuleExplorerItemType.CATEGORY,
-                'Tags',
-                vscode.TreeItemCollapsibleState.Collapsed,
-            );
+                // Add a clear search button
+                const clearSearchItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    'Clear Search',
+                    vscode.TreeItemCollapsibleState.None,
+                );
+                clearSearchItem.command = {
+                    command: 'codingrules-ai.clearSearch',
+                    title: 'Clear Search',
+                };
+                clearSearchItem.iconPath = new vscode.ThemeIcon('clear-all');
 
-            const toolsItem = new RuleExplorerItem(
-                RuleExplorerItemType.CATEGORY,
-                'AI Tools',
-                vscode.TreeItemCollapsibleState.Collapsed,
-            );
+                rootItems.push(searchResultsItem, clearSearchItem);
+            } else {
+                // Root categories (only show these if no search is active)
+                const topRulesItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    'Top Rules',
+                    vscode.TreeItemCollapsibleState.Expanded,
+                );
 
-            rootItems.push(topRulesItem, tagsItem, toolsItem);
+                const tagsItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    'Tags',
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                );
+
+                const toolsItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    'AI Tools',
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                );
+
+                rootItems.push(topRulesItem, tagsItem, toolsItem);
+            }
 
             return rootItems;
         }
@@ -322,6 +348,26 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                     ];
                 }
                 return this.topUpvotedRules.map(
+                    (rule) =>
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            rule.title,
+                            vscode.TreeItemCollapsibleState.None,
+                            rule,
+                        ),
+                );
+
+            case `Search Results for "${this.searchQuery}"`:
+                if (this.searchResults.length === 0) {
+                    return [
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            'No results found',
+                            vscode.TreeItemCollapsibleState.None,
+                        ),
+                    ];
+                }
+                return this.searchResults.map(
                     (rule) =>
                         new RuleExplorerItem(
                             RuleExplorerItemType.RULE,
@@ -374,5 +420,25 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             default:
                 return [];
         }
+    }
+
+    /**
+     * Set search results and update the view
+     */
+    public setSearchResults(searchQuery: string, results: Rule[]): void {
+        this.searchQuery = searchQuery;
+        this.searchResults = results;
+        this.isSearchActive = true;
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Clear search results and reset the view
+     */
+    public clearSearch(): void {
+        this.searchQuery = '';
+        this.searchResults = [];
+        this.isSearchActive = false;
+        this._onDidChangeTreeData.fire();
     }
 }
