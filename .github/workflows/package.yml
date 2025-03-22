@@ -36,14 +36,10 @@ jobs:
         run: npm install -g @vscode/vsce
 
       - name: Package Extension
-        run: |
-          VSIX_FILE=$(vsce package | grep -o '[^/]*\.vsix')
-          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_ENV
-          echo "Packaged extension as $VSIX_FILE"
+        run: vsce package
 
       - name: Upload VSIX as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: extension
-          path: ${{ env.VSIX_FILE }}
-          if-no-files-found: error 
+          path: "*.vsix" 

@@ -42,18 +42,9 @@ jobs:
       - name: Test
         run: npm test
         
-      - name: Install vsce
-        run: npm install -g @vscode/vsce
-        
-      - name: Package VSIX
-        run: |
-          VSIX_FILE=$(vsce package | grep -o '[^/]*\.vsix')
-          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_ENV
-          echo "Packaged extension as $VSIX_FILE"
-        
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vsix-package
-          path: ${{ env.VSIX_FILE }}
-          if-no-files-found: error 
+          path: '*.vsix'
+          if-no-files-found: ignore 
