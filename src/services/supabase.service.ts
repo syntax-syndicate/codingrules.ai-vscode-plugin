@@ -95,6 +95,12 @@ export class SupabaseService {
         try {
             // Ensure auth state is up-to-date before proceeding
             const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            console.log('Search rules - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
+            if (isUserAuthenticated) {
+                console.log('Current user ID:', currentUserId);
+            }
 
             // Extract parameters with defaults
             const {
@@ -116,6 +122,16 @@ export class SupabaseService {
 
             // Handle private rules
             if (!include_private) {
+                // Only show public rules
+                queryBuilder = queryBuilder.eq('is_private', false);
+            } else if (currentUserId) {
+                // Show both public rules AND private rules owned by the current user
+                queryBuilder = queryBuilder.or(
+                    `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`,
+                );
+                console.log('Including private rules for user:', currentUserId);
+            } else {
+                // Fallback: only show public rules if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
@@ -187,10 +203,29 @@ export class SupabaseService {
      */
     public async getTags() {
         try {
+            // Get authentication state
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            console.log('Get tags - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
+            if (isUserAuthenticated) {
+                console.log('Current user ID:', currentUserId);
+            }
+
             let queryBuilder = this.client.from('tags').select('*').eq('is_archived', false);
 
-            // Only include private tags if the user is authenticated
-            if (!this.isAuthenticated) {
+            // Handle private tags with the same logic as rules
+            if (!isUserAuthenticated) {
+                // Only show public tags
+                queryBuilder = queryBuilder.eq('is_private', false);
+            } else if (currentUserId) {
+                // Show both public tags AND private tags created by the current user
+                queryBuilder = queryBuilder.or(
+                    `is_private.eq.false, and(is_private.eq.true, created_by.eq.${currentUserId})`,
+                );
+                console.log('Including private tags for user:', currentUserId);
+            } else {
+                // Fallback: only show public tags
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
@@ -212,10 +247,29 @@ export class SupabaseService {
      */
     public async getTools() {
         try {
+            // Get authentication state
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            console.log('Get tools - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
+            if (isUserAuthenticated) {
+                console.log('Current user ID:', currentUserId);
+            }
+
             let queryBuilder = this.client.from('tools').select('*').eq('is_archived', false);
 
-            // Only include private tools if the user is authenticated
-            if (!this.isAuthenticated) {
+            // Handle private tools with the same logic as rules and tags
+            if (!isUserAuthenticated) {
+                // Only show public tools
+                queryBuilder = queryBuilder.eq('is_private', false);
+            } else if (currentUserId) {
+                // Show both public tools AND private tools created by the current user
+                queryBuilder = queryBuilder.or(
+                    `is_private.eq.false, and(is_private.eq.true, created_by.eq.${currentUserId})`,
+                );
+                console.log('Including private tools for user:', currentUserId);
+            } else {
+                // Fallback: only show public tools
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
@@ -237,6 +291,15 @@ export class SupabaseService {
      */
     public async getTopUpvotedRules(limit: number = 20): Promise<RuleListResponse> {
         try {
+            // Get authentication state
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            console.log('Top upvoted rules - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
+            if (isUserAuthenticated) {
+                console.log('Current user ID:', currentUserId);
+            }
+
             let queryBuilder = this.client
                 .from('rules')
                 .select('*, rule_tags!inner(tag_id, tags!inner(*))', { count: 'exact' })
@@ -245,8 +308,18 @@ export class SupabaseService {
                 .order('upvote_count', { ascending: false })
                 .limit(limit);
 
-            // Only include private rules if the user is authenticated
-            if (!this.isAuthenticated) {
+            // Handle private rules with the same logic as in searchRules
+            if (!isUserAuthenticated) {
+                // Only show public rules
+                queryBuilder = queryBuilder.eq('is_private', false);
+            } else if (currentUserId) {
+                // Show both public rules AND private rules owned by the current user
+                queryBuilder = queryBuilder.or(
+                    `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`,
+                );
+                console.log('Including private rules for user:', currentUserId);
+            } else {
+                // Fallback: only show public rules if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
