@@ -13,34 +13,7 @@ import * as crypto from 'crypto';
  * This allows the authentication callback to work properly across different VS Code-based editors.
  */
 function getEditorProtocol(): string {
-    const appName = (vscode.env.appName || '').toLowerCase();
-
-    if (appName.includes('insiders') && (appName.includes('code') || appName.includes('vscode'))) {
-        return 'code-insiders://';
-    }
-
-    if (appName.includes('visual studio code') || appName === 'code' || appName.includes('vscode')) {
-        return 'vscode://';
-    }
-
-    if (appName.includes('cursor')) {
-        return 'cursor://';
-    }
-
-    if (appName.includes('windsurf')) {
-        return 'windsurf://';
-    }
-
-    if (appName.includes('codium')) {
-        return 'codium://';
-    }
-
-    const firstWord = appName.split(' ')[0].trim();
-    if (firstWord && !firstWord.includes('/') && !firstWord.includes('\\')) {
-        return `${firstWord}://`;
-    }
-
-    return 'vscode://';
+    return vscode.env.uriScheme ? `${vscode.env.uriScheme}://` : 'vscode://';
 }
 
 export async function activate(context: vscode.ExtensionContext) {
