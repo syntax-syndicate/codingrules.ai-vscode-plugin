@@ -13,6 +13,8 @@ export class AuthService {
     private context: vscode.ExtensionContext;
     private _currentUser: User | null = null;
     private logger: Logger = Logger.getInstance();
+    private refreshTimer: NodeJS.Timeout | null = null;
+    private readonly REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes in milliseconds
 
     private constructor(config: SupabaseConfig, context: vscode.ExtensionContext) {
         this.client = createClient<Database>(config.url, config.anonKey);
@@ -69,11 +71,48 @@ export class AuthService {
         try {
             // Attempt to restore session on startup
             await AuthService.instance.restoreSession();
+
+            // Start background refresh if authenticated
+            if (AuthService.instance.isAuthenticated) {
+                AuthService.instance.startBackgroundRefresh();
+            }
         } catch (error) {
             AuthService.instance.logger.error('Error initializing session', error, 'AuthService');
         }
 
         return AuthService.instance;
+    }
+
+    /**
+     * Start background token refresh
+     * This ensures tokens are refreshed before they expire during long sessions
+     */
+    public startBackgroundRefresh(): void {
+        // Clear any existing timer first
+        this.stopBackgroundRefresh();
+
+        this.logger.info('Starting background token refresh timer', 'AuthService');
+
+        // Set up a timer to refresh the token periodically
+        this.refreshTimer = setInterval(async () => {
+            try {
+                this.logger.debug('Background token refresh triggered', 'AuthService');
+                await this.refreshToken();
+            } catch (error) {
+                this.logger.error('Background token refresh failed', error, 'AuthService');
+            }
+        }, this.REFRESH_INTERVAL);
+    }
+
+    /**
+     * Stop background token refresh
+     */
+    public stopBackgroundRefresh(): void {
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+            this.logger.info('Stopped background token refresh timer', 'AuthService');
+        }
     }
 
     /**

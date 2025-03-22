@@ -8,7 +8,7 @@ import { RuleExplorerItem, RuleExplorerItemType } from './explorer-item';
 /**
  * TreeDataProvider for the Rules Explorer
  */
-export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplorerItem> {
+export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplorerItem>, vscode.Disposable {
     private _onDidChangeTreeData: vscode.EventEmitter<RuleExplorerItem | undefined | null | void> =
         new vscode.EventEmitter<RuleExplorerItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<RuleExplorerItem | undefined | null | void> =
@@ -728,5 +728,13 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             this.logger.error('Error updating filtered rules', error, 'RulesExplorerProvider');
             this.filteredRules = [];
         }
+    }
+
+    /**
+     * Clean up resources when provider is no longer needed
+     */
+    public dispose(): void {
+        this.logger.debug('Disposing RulesExplorerProvider', 'RulesExplorerProvider');
+        // Any cleanup needed when the extension is deactivated
     }
 }

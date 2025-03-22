@@ -55,8 +55,8 @@ export async function activate(context: vscode.ExtensionContext) {
             showCollapseAll: true,
         });
 
-        // Add the tree view to context subscriptions
-        context.subscriptions.push(rulesExplorerView);
+        // Make sure to dispose the provider when extension is deactivated
+        context.subscriptions.push(rulesExplorerProvider, rulesExplorerView);
 
         // Initialize and register command handlers
         const ruleCommandHandler = new RuleCommandHandler(context);

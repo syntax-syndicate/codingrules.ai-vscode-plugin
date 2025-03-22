@@ -16,6 +16,17 @@ export class SupabaseService {
     private supabaseUrl: string;
     private anonKey: string;
 
+    // Cache for private rules to improve performance
+    private privateRulesCache: {
+        data: Rule[];
+        count: number;
+        timestamp: number;
+        userId: string;
+    } | null = null;
+
+    // Cache expiration time (5 minutes)
+    private readonly CACHE_EXPIRATION = 5 * 60 * 1000;
+
     private constructor(config: SupabaseConfig) {
         this.supabaseUrl = config.url;
         this.anonKey = config.anonKey;
@@ -405,13 +416,51 @@ export class SupabaseService {
     }
 
     /**
+     * Invalidate the private rules cache
+     * Call this when rules are modified, user logs out, etc.
+     */
+    public invalidatePrivateRulesCache(): void {
+        this.privateRulesCache = null;
+        this.logger.debug('Private rules cache invalidated', 'SupabaseService');
+    }
+
+    /**
+     * Check if the private rules cache is valid
+     */
+    private isPrivateRulesCacheValid(userId: string): boolean {
+        if (!this.privateRulesCache) {
+            return false;
+        }
+
+        // Check if cache is for the current user
+        if (this.privateRulesCache.userId !== userId) {
+            return false;
+        }
+
+        // Check if cache has expired
+        const now = Date.now();
+        const age = now - this.privateRulesCache.timestamp;
+
+        return age < this.CACHE_EXPIRATION;
+    }
+
+    /**
      * Get private rules for the current user
      */
-    public async getPrivateRules(limit: number = 20): Promise<RuleListResponse> {
+    public async getPrivateRules(limit: number = 20, forceRefresh: boolean = false): Promise<RuleListResponse> {
         try {
             // Ensure auth state is up-to-date before proceeding
             const isUserAuthenticated = this.isAuthenticated;
             const currentUserId = this.currentUser?.id;
+
+            // Check if we can use cache
+            if (!forceRefresh && currentUserId && this.isPrivateRulesCacheValid(currentUserId)) {
+                this.logger.info('Using cached private rules', 'SupabaseService');
+                return {
+                    rules: this.privateRulesCache!.data,
+                    count: this.privateRulesCache!.count,
+                };
+            }
 
             // If not authenticated or no user ID, return empty result
             if (!isUserAuthenticated || !currentUserId) {
@@ -574,8 +623,20 @@ export class SupabaseService {
                     this.logger.info(`Direct query failed: ${JSON.stringify(directError)}`, 'SupabaseService');
                 } else if (directData && directData.length > 0) {
                     this.logger.info(`Direct query succeeded! Found ${directData.length} rules`, 'SupabaseService');
+
+                    // Transform the data
+                    const transformedRules = directData.map((item) => this.transformRuleData(item));
+
+                    // Update the cache with fresh data
+                    this.privateRulesCache = {
+                        data: transformedRules,
+                        count: directData.length,
+                        timestamp: Date.now(),
+                        userId: currentUserId,
+                    };
+
                     return {
-                        rules: directData.map((item) => this.transformRuleData(item)),
+                        rules: transformedRules,
                         count: directData.length,
                     };
                 }

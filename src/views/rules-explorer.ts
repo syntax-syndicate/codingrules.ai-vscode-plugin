@@ -125,7 +125,7 @@ export class RuleExplorerItem extends vscode.TreeItem {
 /**
  * TreeDataProvider for the Rules Explorer
  */
-export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplorerItem> {
+export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplorerItem>, vscode.Disposable {
     private _onDidChangeTreeData: vscode.EventEmitter<RuleExplorerItem | undefined | null | void> =
         new vscode.EventEmitter<RuleExplorerItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<RuleExplorerItem | undefined | null | void> =
@@ -235,10 +235,14 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         this._onDidChangeTreeData.fire();
     }
 
+    // Auto-refresh timer
+    private refreshTimer: NodeJS.Timeout | null = null;
+    private readonly AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
     /**
      * Refresh all data from the API
      */
-    async refreshData(): Promise<void> {
+    async refreshData(forceRefresh: boolean = false): Promise<void> {
         if (!this.supabaseService) {
             this.logger.error('SupabaseService not available', null, 'RulesExplorerProvider');
             return;
@@ -246,6 +250,9 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
         this.isLoading = true;
         this._onDidChangeTreeData.fire();
+
+        // Start or reset the auto-refresh timer
+        this.setupAutoRefresh();
 
         try {
             // Always force authentication refresh first to ensure latest state
@@ -510,5 +517,51 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         this.searchResults = [];
         this.isSearchActive = false;
         this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Set up auto-refresh timer to periodically update private rules
+     */
+    private setupAutoRefresh(): void {
+        // Clear any existing timer
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+
+        // Only set up auto-refresh if user is authenticated
+        if (this.showPrivateContent) {
+            this.logger.debug('Setting up auto-refresh timer for private rules', 'RulesExplorerProvider');
+
+            // Set new timer
+            this.refreshTimer = setTimeout(() => {
+                this.logger.info('Auto-refreshing private rules data', 'RulesExplorerProvider');
+
+                // Force private rules cache invalidation to ensure fresh data
+                try {
+                    const supabaseService = this.supabaseService;
+                    if (supabaseService) {
+                        supabaseService.invalidatePrivateRulesCache();
+                    }
+                } catch (error) {
+                    this.logger.warn('Failed to invalidate cache during auto-refresh', 'RulesExplorerProvider');
+                }
+
+                // Perform the actual refresh
+                this.refreshData(true);
+            }, this.AUTO_REFRESH_INTERVAL);
+        }
+    }
+
+    /**
+     * Dispose of resources when the provider is no longer needed
+     */
+    public dispose(): void {
+        // Clean up the refresh timer to prevent memory leaks
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+            this.logger.debug('Cleared auto-refresh timer during dispose', 'RulesExplorerProvider');
+        }
     }
 }

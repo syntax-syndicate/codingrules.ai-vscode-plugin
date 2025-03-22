@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { AuthService } from '../services/auth.service';
+import { SupabaseService } from '../services/supabase.service';
 import { Logger } from '../utils/logger';
 import { SecurityUtils } from '../utils/security';
 
@@ -106,6 +107,18 @@ export class AuthHandler {
                 return;
             }
 
+            // Stop background token refresh before signing out
+            this.authService.stopBackgroundRefresh();
+
+            // Invalidate the private rules cache
+            try {
+                const supabaseService = SupabaseService.getInstance();
+                supabaseService.invalidatePrivateRulesCache();
+                this.logger.info('Invalidated private rules cache before logout', 'AuthHandler');
+            } catch (cacheError) {
+                this.logger.warn(`Failed to invalidate cache: ${cacheError}`, 'AuthHandler');
+            }
+
             await this.authService.signOut();
 
             // Refresh Explorer view after logout
@@ -194,7 +207,16 @@ export class AuthHandler {
                         return;
                     }
 
-                    // Step 2: Refresh the explorer view to update the UI with private rules
+                    // Step 2: Invalidate private rules cache to force a fresh fetch
+                    try {
+                        const supabaseService = SupabaseService.getInstance();
+                        supabaseService.invalidatePrivateRulesCache();
+                        this.logger.info('Invalidated private rules cache during force refresh', 'AuthHandler');
+                    } catch (cacheError) {
+                        this.logger.warn(`Failed to invalidate cache: ${cacheError}`, 'AuthHandler');
+                    }
+
+                    // Step 3: Refresh the explorer view to update the UI with private rules
                     progress.report({ message: 'Refreshing rules explorer...' });
                     await vscode.commands.executeCommand('codingrules-ai.refreshExplorer');
 
@@ -237,6 +259,9 @@ export class AuthHandler {
                 try {
                     // Set the session with the received tokens
                     await this.authService.setSessionFromTokens(accessToken, refreshToken || '');
+
+                    // Start background token refresh after successful login
+                    this.authService.startBackgroundRefresh();
 
                     // Log the user ID immediately after login
                     const userId = this.authService.currentUser?.id;
