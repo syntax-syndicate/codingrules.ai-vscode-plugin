@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.7...v0.5.0) (2025-03-22)
+
+### Features
+
+- add eslint-plugin-unused-imports for managing unused imports and update related configurations ([66f95c9](https://github.com/codingrules-ai/vscode-plugin/commit/66f95c9a9d698b5595da46c117f5c6aa94c572b4))
+- enhance README with authentication, private content, and favorites features ([bdb3ed7](https://github.com/codingrules-ai/vscode-plugin/commit/bdb3ed76650942cae8d1f9e93b583b7a6f8030f5))
+- implement favorite rules functionality with loading and display in the rules explorer ([67cbd56](https://github.com/codingrules-ai/vscode-plugin/commit/67cbd56083d3c976c69466360c183373f1f2df50))
+
 ### [0.4.7](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.6...v0.4.7) (2025-03-22)
 
 ### Features
