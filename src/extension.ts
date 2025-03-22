@@ -44,7 +44,7 @@ function getEditorProtocol(): string {
     return 'vscode://';
 }
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     try {
         // Initialize configuration
         const config = Config.getInstance(context);
@@ -52,9 +52,9 @@ export function activate(context: vscode.ExtensionContext) {
         // Get Supabase configuration
         const supabaseConfig = config.getSupabaseConfig();
 
-        // Initialize services
+        // Initialize services - make sure to await the auth service initialization
         const supabaseService = SupabaseService.initialize(supabaseConfig);
-        const authService = AuthService.initialize(supabaseConfig, context);
+        const authService = await AuthService.initialize(supabaseConfig, context);
 
         // Link services (circular dependency resolution)
         supabaseService.setAuthService(authService);

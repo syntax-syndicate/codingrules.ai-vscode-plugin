@@ -109,16 +109,14 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             try {
                 this.authService = AuthService.getInstance();
 
-                // Register method to refresh data, but don't register the command
-                // The command is registered in the extension.ts file
-                this.refreshData();
-
-                // Set initial state based on auth
+                // Set initial state based on auth - this will be properly updated in refreshData
                 this.showPrivateContent = this.authService.isAuthenticated;
             } catch (e) {
+                console.error('Error getting AuthService:', e);
                 this.showPrivateContent = false;
             }
 
+            // Initial refresh to load data - this will update the auth state
             this.refreshData();
 
             // Register command handlers
@@ -217,13 +215,20 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         this._onDidChangeTreeData.fire();
 
         try {
-            // Check authentication state and log it for debugging
-            const isAuthenticated = this.authService?.isAuthenticated || false;
-
-            // Force authentication refresh if available
+            // Always force authentication refresh first to ensure latest state
             if (this.authService) {
+                // This ensures we have the latest auth state before proceeding
                 await this.authService.refreshCurrentUser();
-                this.showPrivateContent = this.authService.isAuthenticated;
+
+                // Update our private content flag based on the refreshed state
+                const isAuthenticated = this.authService.isAuthenticated;
+                console.log(
+                    'Authentication state after refresh:',
+                    isAuthenticated ? 'authenticated' : 'not authenticated',
+                );
+
+                // Set the flag that controls whether to show private content
+                this.showPrivateContent = isAuthenticated;
             }
 
             // Load rules

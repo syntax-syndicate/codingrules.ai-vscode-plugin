@@ -17,9 +17,6 @@ export class AuthService {
         this.client = createClient<Database>(config.url, config.anonKey);
         this.context = context;
 
-        // First check for existing session synchronously - using getSession
-        this.refreshCurrentUser();
-
         // Set up auth state change listener to ensure state is always up to date
         this.client.auth.onAuthStateChange((event, session) => {
             this._currentUser = session?.user || null;
@@ -34,11 +31,6 @@ export class AuthService {
                     console.error('Error clearing session after sign out:', error);
                 });
             }
-        });
-
-        // Initialize and load any existing session
-        this.loadSession().catch((error) => {
-            console.error('Error loading session during initialization:', error);
         });
     }
 
@@ -60,9 +52,31 @@ export class AuthService {
     /**
      * Initialize the Auth service with configuration
      */
-    public static initialize(config: SupabaseConfig, context: vscode.ExtensionContext): AuthService {
+    public static async initialize(config: SupabaseConfig, context: vscode.ExtensionContext): Promise<AuthService> {
         AuthService.instance = new AuthService(config, context);
+
+        // Initialize by loading any existing session
+        await AuthService.instance.initializeSession();
+
         return AuthService.instance;
+    }
+
+    /**
+     * Initialize session from storage and refresh current user
+     * This ensures authentication state is properly loaded before UI components use it
+     */
+    public async initializeSession(): Promise<void> {
+        try {
+            // First load any stored session
+            await this.loadSession();
+
+            // Then refresh the current user to ensure state is up-to-date
+            await this.refreshCurrentUser();
+        } catch (error) {
+            console.error('Error initializing session:', error);
+            // Clear any potentially corrupt session
+            await this.clearSession();
+        }
     }
 
     /**
@@ -154,8 +168,9 @@ export class AuthService {
 
     /**
      * Load saved session from storage
+     * Returns a Promise to ensure the session is fully loaded before continuing
      */
-    private async loadSession(): Promise<void> {
+    private async loadSession(): Promise<boolean> {
         try {
             // Attempt to restore session from storage
             const savedAccessToken = await this.context.secrets.get(this.SESSION_KEY + '.access');
@@ -171,18 +186,21 @@ export class AuthService {
                 if (error) {
                     console.error('Error restoring session:', error);
                     await this.clearSession();
-                    return;
+                    return false;
                 }
 
                 // Get the user from the session
                 if (data?.user) {
                     this._currentUser = data.user;
+                    return true;
                 }
             }
+            return false;
         } catch (error) {
             console.error('Error loading session:', error);
             // Clear any potentially corrupt session
             await this.clearSession();
+            return false;
         }
     }
 
