@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.2](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.4.1...v0.4.2) (2025-03-22)
+
+### Features
+
+- enhance Supabase service to include user authentication checks and private content handling ([b0ff271](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/b0ff27133ac95e706b7938f724610e307f6bdd9d))
+- improve URI protocol detection ([6915600](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/6915600a13f6a2f06e9d788109d6cc92bf28bd93))
+- refactor authentication service initialization and enhance session management ([053f2ca](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/053f2ca095b962a7849e1e8ca130599b24b3b99f))
+- sort tags and tools alphabetically in rule viewer and rules explorer ([4008fd1](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/4008fd1291fae52e501aafe3dc772977713e49ed))
+
 ### [0.4.1](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.4.0...v0.4.1) (2025-03-21)
 
 ### Features
