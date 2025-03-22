@@ -83,25 +83,25 @@ export class RuleViewer {
             // Validate rule has required properties
             if (!this.rule.title) {
                 vscode.window.showErrorMessage(
-                    `Cannot download rule: Missing title information. Please try another rule.`
+                    `Cannot download rule: Missing title information. Please try another rule.`,
                 );
                 return;
             }
-            
+
             // Validate rule content before attempting to download
             if (!this.rule.content) {
                 vscode.window.showErrorMessage(
-                    `Cannot download rule "${this.rule.title}": Rule content is empty or missing. Please try another rule.`
+                    `Cannot download rule "${this.rule.title}": Rule content is empty or missing. Please try another rule.`,
                 );
                 return;
             }
-            
+
             // Use our centralized download command with the format (this will add format to the rule object)
             const ruleWithFormat = {
                 ...this.rule,
-                selectedFormat: format
+                selectedFormat: format,
             };
-            
+
             await vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', ruleWithFormat);
         } catch (error) {
             vscode.window.showErrorMessage(
@@ -122,7 +122,11 @@ export class RuleViewer {
      */
     private getHtmlContent(): string {
         const rule = this.rule;
-        const tagsList = rule.tags?.map((tag) => `<span class="tag">${tag.name}</span>`).join('') || '';
+        const tagsList =
+            rule.tags
+                ?.sort((a, b) => a.name.localeCompare(b.name))
+                .map((tag) => `<span class="tag">${tag.name}</span>`)
+                .join('') || '';
 
         // Format date
         const formatDate = (dateStr: string) => {

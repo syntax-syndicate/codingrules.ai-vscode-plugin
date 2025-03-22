@@ -244,11 +244,11 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
             // Load tags
             const tags = await this.supabaseService.getTags();
-            this.tags = tags || [];
+            this.tags = (tags || []).sort((a, b) => a.name.localeCompare(b.name));
 
             // Load tools
             const tools = await this.supabaseService.getTools();
-            this.tools = tools || [];
+            this.tools = (tools || []).sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
             console.error('Error refreshing rules data:', error);
             vscode.window.showErrorMessage('Failed to load rules data. Please try again later.');
