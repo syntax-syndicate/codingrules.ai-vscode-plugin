@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Config } from './config';
 import { SupabaseService } from './services/supabase.service';
 import { AuthService } from './services/auth.service';
-import { Rule } from './models/rule.model';
+import { Rule, AIToolFormat, GenericFormat } from './models/rule.model';
 import { RuleDownloaderService } from './services/rule-downloader.service';
 import { RulesExplorerProvider, RuleExplorerItem, RuleExplorerItemType } from './views/rules-explorer';
 import { RuleViewer } from './views/rule-viewer';
@@ -90,12 +90,11 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Handle different input types
                     if (node instanceof RuleExplorerItem) {
                         // Case 1: Input is a TreeItem from the explorer
-                        if (node.type === RuleExplorerItemType.RULE && node.dataId) {
-                            rule = await supabaseService.getRule(node.dataId);
-                        } else {
+                        if (node.type !== RuleExplorerItemType.RULE || !node.dataId) {
                             vscode.window.showErrorMessage('Could not download: Item is not a rule.');
                             return;
                         }
+                        rule = await supabaseService.getRule(node.dataId);
                     } else if (typeof node === 'object' && node !== null) {
                         // Case 2: Input is a Rule object
                         rule = node as Rule;
@@ -111,6 +110,47 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (!rule) {
                         vscode.window.showErrorMessage('Could not load rule details for download.');
                         return;
+                    }
+
+                    // If no format already selected (from rule-viewer), show format selection menu
+                    if (!selectedFormat) {
+                        // Create format options including copy to clipboard
+                        const formatOptions = [
+                            { label: 'Copy to clipboard', action: 'copy' },
+                            { label: `Cline Rule (${AIToolFormat.CLINE})`, format: AIToolFormat.CLINE },
+                            { label: `Cursor Rule (${AIToolFormat.CURSOR})`, format: AIToolFormat.CURSOR },
+                            { label: `Windsurf Rule (${AIToolFormat.WINDSURF})`, format: AIToolFormat.WINDSURF },
+                            { label: `Markdown (${GenericFormat.MD})`, format: GenericFormat.MD },
+                            { label: `Text file (${GenericFormat.TXT})`, format: GenericFormat.TXT },
+                        ];
+
+                        // Show quick pick menu
+                        const selectedOption = await vscode.window.showQuickPick(
+                            formatOptions.map((option) => option.label),
+                            {
+                                placeHolder: 'Select download format or action',
+                            },
+                        );
+
+                        if (!selectedOption) {
+                            // User cancelled
+                            return;
+                        }
+
+                        // Find the selected format or action
+                        const option = formatOptions.find((opt) => opt.label === selectedOption);
+
+                        if (option?.action === 'copy') {
+                            // Handle copy to clipboard action
+                            await vscode.env.clipboard.writeText(rule.content);
+                            vscode.window.showInformationMessage('Rule copied to clipboard');
+                            return;
+                        } else if (option?.format) {
+                            selectedFormat = option.format;
+                        } else {
+                            // User cancelled or something went wrong
+                            return;
+                        }
                     }
 
                     // Show file picker for download location

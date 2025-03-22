@@ -250,13 +250,30 @@ export class RuleViewer {
           .download-section {
             margin-top: 2rem;
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 1rem;
+          }
+          .download-header {
+            display: flex;
             align-items: center;
             gap: 0.5rem;
           }
-          .download-section h3 {
+          .download-header h3 {
             margin: 0;
-            margin-right: 1rem;
+          }
+          .download-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+          .download-group {
+            margin-bottom: 1rem;
+          }
+          .download-group-title {
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: var(--vscode-descriptionForeground);
           }
           button {
             background-color: var(--vscode-button-background);
@@ -268,6 +285,9 @@ export class RuleViewer {
             font-size: 0.9rem;
             margin-right: 0.5rem;
             margin-bottom: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
           }
           button:hover {
             background-color: var(--vscode-button-hoverBackground);
@@ -328,11 +348,30 @@ export class RuleViewer {
         </div>
         
         <div class="download-section">
-          <h3>Download as:</h3>
-          <button id="download-cline">Cline Rule (.clinerules)</button>
-          <button id="download-cursor">Cursor Rule (.cursorrules)</button>
-          <button id="download-windsurf">Windsurf Rule (.windsurfrules)</button>
-          <button id="copy-to-clipboard" title="Copy to clipboard">📋 Copy to clipboard</button>
+          <div class="download-header">
+            <h3>Download or Copy</h3>
+          </div>
+          
+          <div class="download-options">
+            <button id="copy-to-clipboard" title="Copy to clipboard">📋 Copy to clipboard</button>
+          </div>
+          
+          <div class="download-group">
+            <div class="download-group-title">AI Tool Formats</div>
+            <div class="download-options">
+              <button id="download-cline">Cline (.clinerules)</button>
+              <button id="download-cursor">Cursor (.cursorrules)</button>
+              <button id="download-windsurf">Windsurf (.windsurfrules)</button>
+            </div>
+          </div>
+          
+          <div class="download-group">
+            <div class="download-group-title">General Formats</div>
+            <div class="download-options">
+              <button id="download-md">Markdown (.md)</button>
+              <button id="download-txt">Text (.txt)</button>
+            </div>
+          </div>
         </div>
         
         <script>
@@ -348,6 +387,14 @@ export class RuleViewer {
           
           document.getElementById('download-windsurf').addEventListener('click', () => {
             vscode.postMessage({ command: 'downloadRule', format: '.windsurfrules' });
+          });
+          
+          document.getElementById('download-md').addEventListener('click', () => {
+            vscode.postMessage({ command: 'downloadRule', format: '.md' });
+          });
+          
+          document.getElementById('download-txt').addEventListener('click', () => {
+            vscode.postMessage({ command: 'downloadRule', format: '.txt' });
           });
 
           // Copy to clipboard functionality
