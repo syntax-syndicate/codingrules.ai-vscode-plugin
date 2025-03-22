@@ -603,7 +603,7 @@ export class RuleViewer {
 
           // Copy to clipboard functionality
           function copyToClipboard() {
-            const content = ${JSON.stringify(rule.content)};
+            const content = ${JSON.stringify(rule.content || '')};
             vscode.postMessage({ 
               command: 'copyToClipboard', 
               text: content 
@@ -611,16 +611,27 @@ export class RuleViewer {
             
             // Show tooltip
             const tooltip = document.getElementById('copy-tooltip');
-            tooltip.classList.add('show');
-            
-            // Hide tooltip after 2 seconds
-            setTimeout(() => {
-              tooltip.classList.remove('show');
-            }, 2000);
+            if (tooltip) {
+              tooltip.classList.add('show');
+              
+              // Hide tooltip after 2 seconds
+              setTimeout(() => {
+                tooltip.classList.remove('show');
+              }, 2000);
+            }
           }
           
-          document.getElementById('copy-content').addEventListener('click', copyToClipboard);
-          document.getElementById('copy-to-clipboard').addEventListener('click', copyToClipboard);
+          // Ensure elements exist before adding event listeners
+          const copyContentBtn = document.getElementById('copy-content');
+          const copyToClipboardBtn = document.getElementById('copy-to-clipboard');
+          
+          if (copyContentBtn) {
+            copyContentBtn.addEventListener('click', copyToClipboard);
+          }
+          
+          if (copyToClipboardBtn) {
+            copyToClipboardBtn.addEventListener('click', copyToClipboard);
+          }
         </script>
       </body>
       </html>
