@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.1](https://github.com/codingrules-ai/vscode-plugin/compare/v0.5.0...v0.5.1) (2025-03-22)
+
+### Features
+
+- add basic tests ([9850012](https://github.com/codingrules-ai/vscode-plugin/commit/985001251dc037575d5a46237c2ac7f79676455a))
+- add CI, packaging, and release workflows for extension ([1d80cf5](https://github.com/codingrules-ai/vscode-plugin/commit/1d80cf5dc5b8884440985afcbd4a8c8e976a0f5c))
+- add Xvfb setup to CI, packaging, and release workflows ([4f69c26](https://github.com/codingrules-ai/vscode-plugin/commit/4f69c261a08d8db97f79e6145d9a8218cd749070))
+
 ## [0.5.0](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.7...v0.5.0) (2025-03-22)
 
 ### Features
