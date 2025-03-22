@@ -68,6 +68,12 @@ export class RuleViewer {
                             vscode.window.showInformationMessage('Rule copied to clipboard');
                         }
                         break;
+                    case 'openExternalLink':
+                        if (message.url) {
+                            await vscode.env.openExternal(vscode.Uri.parse(message.url));
+                            vscode.window.showInformationMessage(`Opening profile for ${this.authorUsername}`);
+                        }
+                        break;
                     case 'close':
                         this.panel.dispose();
                         break;
@@ -166,6 +172,9 @@ export class RuleViewer {
             }
         };
 
+        // Store username for use in JavaScript
+        const authorUsername = this.authorUsername;
+
         return /*html*/ `
       <!DOCTYPE html>
       <html lang="en">
@@ -206,9 +215,26 @@ export class RuleViewer {
           .tag {
             background-color: var(--vscode-badge-background);
             color: var(--vscode-badge-foreground);
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
             font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.1s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--vscode-widget-border, transparent);
+          }
+          .tag:hover {
+            transform: translateY(-1px);
+            background-color: var(--vscode-button-hoverBackground);
+            color: var(--vscode-button-foreground);
+          }
+          .tag::before {
+            content: '#';
+            margin-right: 0.25rem;
+            font-weight: 600;
+            opacity: 0.7;
           }
           .content-container {
             position: relative;
@@ -304,6 +330,15 @@ export class RuleViewer {
           .author {
             font-weight: bold;
           }
+          .author-link {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+            cursor: pointer;
+          }
+          .author-link:hover {
+            color: var(--vscode-textLink-activeForeground);
+            text-decoration: underline;
+          }
           .copy-tooltip {
             position: absolute;
             background-color: var(--vscode-editorHoverWidget-background);
@@ -326,8 +361,8 @@ export class RuleViewer {
         <h1>${rule.title}</h1>
         <div class="metadata">
           <div class="metadata-row">
-            <div class="author">Author: ${this.authorUsername}</div>
-            <div class="upvotes">${rule.upvote_count}</div>
+            <div class="author">Author: <a class="author-link" id="author-profile">${authorUsername}</a></div>
+            <div class="upvotes">${rule.upvote_count || 0}</div>
           </div>
           <div class="metadata-row">
             <div>Created: ${formatDate(rule.created_at)}</div>
@@ -376,6 +411,20 @@ export class RuleViewer {
         
         <script>
           const vscode = acquireVsCodeApi();
+          const authorUsername = "${authorUsername}";
+          
+          // Set up author profile link
+          document.getElementById('author-profile').addEventListener('click', () => {
+            try {
+              const profileUrl = 'https://codingrules.ai/profile/' + authorUsername;
+              vscode.postMessage({ 
+                command: 'openExternalLink', 
+                url: profileUrl
+              });
+            } catch (error) {
+              console.error('Failed to open profile:', error);
+            }
+          });
           
           document.getElementById('download-cline').addEventListener('click', () => {
             vscode.postMessage({ command: 'downloadRule', format: '.clinerules' });
