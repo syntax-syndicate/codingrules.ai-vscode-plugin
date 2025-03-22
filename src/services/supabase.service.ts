@@ -417,4 +417,22 @@ export class SupabaseService {
 
         throw new Error(`Supabase API error: ${message}`);
     }
+
+    /**
+     * Get a user profile by ID
+     */
+    public async getUserProfile(userId: string): Promise<any | null> {
+        try {
+            const { data, error } = await this.client.from('profiles').select('*').eq('id', userId).single();
+
+            if (error) {
+                throw error;
+            }
+
+            return data || null;
+        } catch (error) {
+            this.logger.error('Error fetching user profile', error, 'SupabaseService');
+            return null;
+        }
+    }
 }
