@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# Add permissions section for GitHub releases
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Publish Extension
@@ -22,9 +26,6 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Package Extension
-        run: npm run package
-
       - name: Setup Xvfb
         run: |
           sudo apt-get install -y xvfb
@@ -35,11 +36,18 @@ jobs:
       - name: Install vsce
         run: npm install -g @vscode/vsce
 
+      - name: Package Extension
+        # Save the packaged file name to a variable
+        run: |
+          VSIX_FILE=$(vsce package | grep -o '[^/]*\.vsix')
+          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_ENV
+          echo "Packaged extension as $VSIX_FILE"
+
       - name: Publish to VS Code Marketplace
         run: vsce publish -p ${{ secrets.VSCE_PAT }}
         
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: "*.vsix"
+          files: ${{ env.VSIX_FILE }}
           generate_release_notes: true 
