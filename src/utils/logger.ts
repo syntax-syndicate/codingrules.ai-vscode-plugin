@@ -151,7 +151,7 @@ export class Logger {
             }
 
             return `Error details: ${JSON.stringify(error, null, 2)}`;
-        } catch (formatError) {
+        } catch {
             return 'Error formatting error object';
         }
     }

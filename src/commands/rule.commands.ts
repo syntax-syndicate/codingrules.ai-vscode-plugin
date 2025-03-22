@@ -43,7 +43,7 @@ export class RuleCommandHandler {
 
                     // Show rule panel
                     if (rule) {
-                        RuleViewer.show(rule, this.context);
+                        RuleViewer.show(rule);
                     } else {
                         vscode.window.showErrorMessage('Could not load rule details.');
                     }

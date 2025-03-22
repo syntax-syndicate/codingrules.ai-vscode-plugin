@@ -19,7 +19,7 @@ export class RuleViewerUI {
             try {
                 const date = new Date(dateStr);
                 return date.toLocaleDateString();
-            } catch (e) {
+            } catch {
                 return dateStr;
             }
         };

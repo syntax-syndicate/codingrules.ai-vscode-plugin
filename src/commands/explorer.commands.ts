@@ -201,7 +201,7 @@ export class ExplorerCommandHandler {
                         const selectedItem = quickPick.selectedItems[0] as RuleQuickPickItem;
                         if (selectedItem && selectedItem.rule) {
                             // View rule details
-                            RuleViewer.show(selectedItem.rule, this.context);
+                            RuleViewer.show(selectedItem.rule);
                             quickPick.hide();
                         }
                     });
@@ -219,7 +219,7 @@ export class ExplorerCommandHandler {
 
                         switch (buttonIndex) {
                             case 0: // View
-                                RuleViewer.show(selectedItem.rule, this.context);
+                                RuleViewer.show(selectedItem.rule);
                                 quickPick.hide();
                                 break;
 

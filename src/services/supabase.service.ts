@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
-import { Config, SupabaseConfig } from '../config';
+import { SupabaseConfig } from '../config';
 import { AuthService } from './auth.service';
 import { Rule, RuleListResponse, RuleSearchParams } from '../models/rule.model';
 import { Database } from '../types/database.types';
@@ -35,7 +35,7 @@ export class SupabaseService {
         // Attempt to get the AuthService if it's already initialized
         try {
             this.authService = AuthService.getInstance();
-        } catch (e) {
+        } catch {
             // AuthService not initialized yet, it will be set later
         }
     }
@@ -687,10 +687,6 @@ export class SupabaseService {
             // Create a special request that will set auth headers for us
             try {
                 const userId = currentUserId;
-                const headers = {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token || ''}`,
-                };
 
                 // Direct request to Supabase RESTful API using our helper method
                 const response = await this.createAuthenticatedRequest(

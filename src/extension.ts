@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
+import { AuthCommandHandler, ExplorerCommandHandler, RuleCommandHandler } from './commands';
 import { Config } from './config';
-import { SupabaseService } from './services/supabase.service';
-import { AuthService } from './services/auth.service';
-import { Logger, LogLevel } from './utils/logger';
 import { AuthHandler } from './handlers/auth-handler';
-import { RuleService } from './services/rule.service';
+import { AuthService } from './services/auth.service';
+import { SupabaseService } from './services/supabase.service';
+import { Logger, LogLevel } from './utils/logger';
 import { RulesExplorerProvider } from './views/explorer';
-import { RuleCommandHandler, ExplorerCommandHandler, AuthCommandHandler } from './commands';
 
 /**
  * Entry point for the extension
@@ -38,9 +37,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Link services (circular dependency resolution)
         supabaseService.setAuthService(authService);
-
-        // Initialize rule service
-        const ruleService = RuleService.initialize();
 
         // Initialize authentication handler
         const authHandler = new AuthHandler(context, authService);

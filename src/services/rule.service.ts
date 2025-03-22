@@ -1,6 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { Rule, RuleListResponse, RuleSearchParams, Tag, Tool } from '../models/rule.model';
-import { Database } from '../types/database.types';
 import { Logger } from '../utils/logger';
 import { SupabaseService } from './supabase.service';
 

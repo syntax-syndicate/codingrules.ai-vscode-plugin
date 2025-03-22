@@ -23,7 +23,7 @@ export class RuleViewer {
     /**
      * Show a rule viewer panel for the given rule
      */
-    public static show(rule: Rule, context: vscode.ExtensionContext): RuleViewer {
+    public static show(rule: Rule): RuleViewer {
         const column = vscode.window.activeTextEditor?.viewColumn || vscode.ViewColumn.One;
 
         // Check if we already have a panel for this rule
@@ -39,12 +39,12 @@ export class RuleViewer {
             retainContextWhenHidden: true,
         });
 
-        const viewer = new RuleViewer(panel, rule, context);
+        const viewer = new RuleViewer(panel, rule);
         RuleViewer.panels.set(rule.id, viewer);
         return viewer;
     }
 
-    private constructor(panel: vscode.WebviewPanel, rule: Rule, context: vscode.ExtensionContext) {
+    private constructor(panel: vscode.WebviewPanel, rule: Rule) {
         this.panel = panel;
         this.rule = rule;
         this.ruleService = RuleService.getInstance();

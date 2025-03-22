@@ -124,7 +124,7 @@ export class RuleDownloaderService {
                     }
                     // If choice is 'Override', we will continue with the original formattedContent
                 }
-            } catch (err) {
+            } catch {
                 // File doesn't exist, continue with normal save
                 this.logger.debug(`File "${filename}" doesn't exist yet, creating new file`, 'RuleDownloaderService');
             }

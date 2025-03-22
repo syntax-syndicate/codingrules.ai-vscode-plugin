@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { Rule, Tag, Tool } from '../models/rule.model';
-import { SupabaseService } from '../services/supabase.service';
-import { Config } from '../config';
 import { AuthService } from '../services/auth.service';
+import { SupabaseService } from '../services/supabase.service';
 import { Logger } from '../utils/logger';
 
 /**
@@ -149,9 +148,6 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
     constructor(context: vscode.ExtensionContext) {
         try {
-            const config = Config.getInstance(context);
-            const supabaseConfig = config.getSupabaseConfig();
-
             // Get services
             this.supabaseService = SupabaseService.getInstance();
 
@@ -244,7 +240,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     /**
      * Refresh all data from the API
      */
-    async refreshData(forceRefresh: boolean = false): Promise<void> {
+    async refreshData(): Promise<void> {
         if (!this.supabaseService) {
             this.logger.error('SupabaseService not available', null, 'RulesExplorerProvider');
             return;
@@ -652,12 +648,12 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                     if (supabaseService) {
                         supabaseService.invalidatePrivateRulesCache();
                     }
-                } catch (error) {
+                } catch {
                     this.logger.warn('Failed to invalidate cache during auto-refresh', 'RulesExplorerProvider');
                 }
 
                 // Perform the actual refresh
-                this.refreshData(true);
+                this.refreshData();
             }, this.AUTO_REFRESH_INTERVAL);
         }
     }
