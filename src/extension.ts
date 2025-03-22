@@ -13,51 +13,33 @@ import * as crypto from 'crypto';
  * This allows the authentication callback to work properly across different VS Code-based editors.
  */
 function getEditorProtocol(): string {
-    // Get the application name from VS Code's environment
-    const appName = vscode.env.appName || '';
+    const appName = (vscode.env.appName || '').toLowerCase();
 
-    // Check if we're running in Electron (which includes VS Code and most VS Code-based IDEs)
-    if (appName) {
-        // Convert to lowercase for consistent matching
-        const appNameLower = appName.toLowerCase();
-
-        // Handle VS Code Insiders with improved detection - handles different naming variations
-        if (appNameLower.includes('insiders') && (appNameLower.includes('code') || appNameLower.includes('vscode'))) {
-            return 'vscode-insiders://';
-        }
-        // Handle VS Code standard edition
-        else if (
-            appNameLower.includes('visual studio code') ||
-            appNameLower === 'code' ||
-            appNameLower.includes('vscode')
-        ) {
-            return 'vscode://';
-        }
-        // Handle other specific known cases
-        else if (appNameLower.includes('cursor')) {
-            return 'cursor://';
-        } else if (appNameLower.includes('windsurf')) {
-            return 'windsurf://';
-        } else if (appNameLower.includes('codium')) {
-            return 'codium://';
-        }
-
-        // For debugging purposes, log what would have been used with the old first-word approach
-        const firstWord = appNameLower.split(' ')[0].trim();
-
-        // If we see "visual" as the first word and "code" appears in the name, it's likely VS Code
-        if (firstWord === 'visual' && appNameLower.includes('code')) {
-            return 'vscode://';
-        }
-
-        // Fallback: Extract the first word of the app name as a protocol
-        // This handles unknown VS Code-based editors by using their name as the protocol
-        if (firstWord && !firstWord.includes('/') && !firstWord.includes('\\')) {
-            return `${firstWord}://`;
-        }
+    if (appName.includes('insiders') && (appName.includes('code') || appName.includes('vscode'))) {
+        return 'code-insiders://';
     }
 
-    // Default to vscode:// as the fallback protocol
+    if (appName.includes('visual studio code') || appName === 'code' || appName.includes('vscode')) {
+        return 'vscode://';
+    }
+
+    if (appName.includes('cursor')) {
+        return 'cursor://';
+    }
+
+    if (appName.includes('windsurf')) {
+        return 'windsurf://';
+    }
+
+    if (appName.includes('codium')) {
+        return 'codium://';
+    }
+
+    const firstWord = appName.split(' ')[0].trim();
+    if (firstWord && !firstWord.includes('/') && !firstWord.includes('\\')) {
+        return `${firstWord}://`;
+    }
+
     return 'vscode://';
 }
 
