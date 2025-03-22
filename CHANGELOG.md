@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.2](https://github.com/codingrules-ai/vscode-plugin/compare/v0.5.1...v0.5.2) (2025-03-22)
+
+### Features
+
+- update CI and release workflows to package and upload VSIX files correctly ([f5e99e7](https://github.com/codingrules-ai/vscode-plugin/commit/f5e99e74471c59d8dd4b631988dcb002a634b8cc))
+
 ### [0.5.1](https://github.com/codingrules-ai/vscode-plugin/compare/v0.5.0...v0.5.1) (2025-03-22)
 
 ### Features
