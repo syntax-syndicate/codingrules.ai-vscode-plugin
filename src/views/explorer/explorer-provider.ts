@@ -28,6 +28,19 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     private isSearchActive = false;
     private searchQuery = '';
 
+    // Filter-related state
+    private activeFilters: { tags: string[]; tools: string[] } = { tags: [], tools: [] };
+    private isFilterActive = false;
+    private filteredRules: Rule[] = [];
+
+    // Expanded state tracking
+    private expandedTags: Set<string> = new Set();
+    private expandedTools: Set<string> = new Set();
+
+    // Cache for tag and tool rule previews
+    private tagRulePreviews: Map<string, Rule[]> = new Map();
+    private toolRulePreviews: Map<string, Rule[]> = new Map();
+
     constructor(private context: vscode.ExtensionContext) {
         try {
             // Get services
@@ -119,6 +132,10 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
      * Refresh all data from the API
      */
     async refreshData(): Promise<void> {
+        // Clear caches
+        this.ruleService.clearCaches();
+        this.tagRulePreviews.clear();
+        this.toolRulePreviews.clear();
         if (!this.ruleService) {
             this.logger.error('RuleService not available', null, 'RulesExplorerProvider');
             return;
@@ -228,8 +245,38 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 clearSearchItem.iconPath = new vscode.ThemeIcon('clear-all');
 
                 rootItems.push(searchResultsItem, clearSearchItem);
+            }
+            // Display filtered view if filters are active
+            else if (this.isFilterActive) {
+                // Show active filters section
+                const activeFiltersItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    'Active Filters',
+                    vscode.TreeItemCollapsibleState.Expanded,
+                );
+
+                // Add clear filters button
+                const clearFiltersItem = new RuleExplorerItem(
+                    RuleExplorerItemType.ACTION,
+                    'Clear All Filters',
+                    vscode.TreeItemCollapsibleState.None,
+                );
+                clearFiltersItem.command = {
+                    command: 'codingrules-ai.clearFilters',
+                    title: 'Clear Filters',
+                };
+                clearFiltersItem.iconPath = new vscode.ThemeIcon('clear-all');
+
+                // Add filtered results category
+                const filteredResultsItem = new RuleExplorerItem(
+                    RuleExplorerItemType.CATEGORY,
+                    `Filtered Rules (${this.filteredRules.length})`,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                );
+
+                rootItems.push(activeFiltersItem, clearFiltersItem, filteredResultsItem);
             } else {
-                // Root categories (only show these if no search is active)
+                // Root categories (only show these if no search or filter is active)
 
                 // Add Private Rules section if authenticated
                 if (this.showPrivateContent) {
@@ -327,6 +374,66 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                         ),
                 );
 
+            case 'Active Filters':
+                const filterItems: RuleExplorerItem[] = [];
+
+                // Add tag filters if any
+                if (this.activeFilters.tags.length > 0) {
+                    const tagNames = await Promise.all(
+                        this.activeFilters.tags.map(async (tagId) => {
+                            const tag = this.tags.find((t) => t.id === tagId);
+                            return tag ? tag.name : 'Unknown Tag';
+                        }),
+                    );
+
+                    const tagFiltersItem = new RuleExplorerItem(
+                        RuleExplorerItemType.FILTER,
+                        `Tags: ${tagNames.join(', ')}`,
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+                    filterItems.push(tagFiltersItem);
+                }
+
+                // Add tool filters if any
+                if (this.activeFilters.tools.length > 0) {
+                    const toolNames = await Promise.all(
+                        this.activeFilters.tools.map(async (toolId) => {
+                            const tool = this.tools.find((t) => t.id === toolId);
+                            return tool ? tool.name : 'Unknown Tool';
+                        }),
+                    );
+
+                    const toolFiltersItem = new RuleExplorerItem(
+                        RuleExplorerItemType.FILTER,
+                        `Tools: ${toolNames.join(', ')}`,
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+                    filterItems.push(toolFiltersItem);
+                }
+
+                return filterItems;
+
+            case 'Filtered Rules (0)':
+            case element.label.startsWith('Filtered Rules (') ? element.label : '':
+                if (this.filteredRules.length === 0) {
+                    return [
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            'No rules match the selected filters',
+                            vscode.TreeItemCollapsibleState.None,
+                        ),
+                    ];
+                }
+                return this.filteredRules.map(
+                    (rule) =>
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            rule.title,
+                            vscode.TreeItemCollapsibleState.None,
+                            rule,
+                        ),
+                );
+
             case 'Tags':
                 if (this.tags.length === 0) {
                     return [
@@ -337,15 +444,24 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                         ),
                     ];
                 }
-                return this.tags.map(
-                    (tag) =>
-                        new RuleExplorerItem(
+
+                // Create tag items with rule counts
+                const tagItems = await Promise.all(
+                    this.tags.map(async (tag) => {
+                        const count = await this.ruleService.getRuleCountForTag(tag.id);
+                        return new RuleExplorerItem(
                             RuleExplorerItemType.TAG,
                             tag.name,
-                            vscode.TreeItemCollapsibleState.None,
+                            count > 0
+                                ? vscode.TreeItemCollapsibleState.Collapsed
+                                : vscode.TreeItemCollapsibleState.None,
                             tag,
-                        ),
+                            count,
+                        );
+                    }),
                 );
+
+                return tagItems;
 
             case 'AI Tools':
                 if (this.tools.length === 0) {
@@ -357,17 +473,139 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                         ),
                     ];
                 }
-                return this.tools.map(
-                    (tool) =>
-                        new RuleExplorerItem(
+
+                // Create tool items with rule counts
+                const toolItems = await Promise.all(
+                    this.tools.map(async (tool) => {
+                        const count = await this.ruleService.getRuleCountForTool(tool.id);
+                        return new RuleExplorerItem(
                             RuleExplorerItemType.TOOL,
                             tool.name,
-                            vscode.TreeItemCollapsibleState.None,
+                            count > 0
+                                ? vscode.TreeItemCollapsibleState.Collapsed
+                                : vscode.TreeItemCollapsibleState.None,
                             tool,
-                        ),
+                            count,
+                        );
+                    }),
                 );
 
+                return toolItems;
+
             default:
+                // Check if this is a tag item
+                if (element.type === RuleExplorerItemType.TAG && element.data) {
+                    const tag = element.data as Tag;
+                    // Get top rules for this tag
+                    const tagId = tag.id;
+
+                    if (!element.childrenFetched) {
+                        // Fetch rules for this tag if not already fetched
+                        try {
+                            const rules = await this.ruleService.getTopRulesForTag(tagId);
+                            this.tagRulePreviews.set(tagId, rules);
+                            element.childrenFetched = true;
+                        } catch (error) {
+                            this.logger.error(`Error fetching rules for tag ${tagId}`, error, 'RulesExplorerProvider');
+                        }
+                    }
+
+                    const previewRules = this.tagRulePreviews.get(tagId) || [];
+
+                    if (previewRules.length === 0) {
+                        return [
+                            new RuleExplorerItem(
+                                RuleExplorerItemType.RULE,
+                                'No rules found for this tag',
+                                vscode.TreeItemCollapsibleState.None,
+                            ),
+                        ];
+                    }
+
+                    // Create preview items
+                    const previewItems = previewRules.map(
+                        (rule) =>
+                            new RuleExplorerItem(
+                                RuleExplorerItemType.RULE,
+                                rule.title,
+                                vscode.TreeItemCollapsibleState.None,
+                                rule,
+                            ),
+                    );
+
+                    // Add "Show all" item that will apply this tag as a filter
+                    const showAllItem = new RuleExplorerItem(
+                        RuleExplorerItemType.ACTION,
+                        'Show all rules with this tag...',
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+                    showAllItem.command = {
+                        command: 'codingrules-ai.filterByTag',
+                        title: 'Filter by Tag',
+                        arguments: [tagId],
+                    };
+
+                    return [...previewItems, showAllItem];
+                }
+
+                // Check if this is a tool item
+                if (element.type === RuleExplorerItemType.TOOL && element.data) {
+                    const tool = element.data as Tool;
+                    const toolId = tool.id;
+
+                    if (!element.childrenFetched) {
+                        // Fetch rules for this tool if not already fetched
+                        try {
+                            const rules = await this.ruleService.getTopRulesForTool(toolId);
+                            this.toolRulePreviews.set(toolId, rules);
+                            element.childrenFetched = true;
+                        } catch (error) {
+                            this.logger.error(
+                                `Error fetching rules for tool ${toolId}`,
+                                error,
+                                'RulesExplorerProvider',
+                            );
+                        }
+                    }
+
+                    const previewRules = this.toolRulePreviews.get(toolId) || [];
+
+                    if (previewRules.length === 0) {
+                        return [
+                            new RuleExplorerItem(
+                                RuleExplorerItemType.RULE,
+                                'No rules found for this tool',
+                                vscode.TreeItemCollapsibleState.None,
+                            ),
+                        ];
+                    }
+
+                    // Create preview items
+                    const previewItems = previewRules.map(
+                        (rule) =>
+                            new RuleExplorerItem(
+                                RuleExplorerItemType.RULE,
+                                rule.title,
+                                vscode.TreeItemCollapsibleState.None,
+                                rule,
+                            ),
+                    );
+
+                    // Add "Show all" item that will apply this tool as a filter
+                    const showAllItem = new RuleExplorerItem(
+                        RuleExplorerItemType.ACTION,
+                        'Show all rules for this tool...',
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+                    showAllItem.command = {
+                        command: 'codingrules-ai.filterByTool',
+                        title: 'Filter by Tool',
+                        arguments: [toolId],
+                    };
+
+                    return [...previewItems, showAllItem];
+                }
+
                 return [];
         }
     }
@@ -376,6 +614,10 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
      * Set search results and update the view
      */
     public setSearchResults(searchQuery: string, results: Rule[]): void {
+        // Clear any active filters when search is activated
+        this.activeFilters = { tags: [], tools: [] };
+        this.isFilterActive = false;
+
         this.searchQuery = searchQuery;
         this.searchResults = results;
         this.isSearchActive = true;
@@ -390,5 +632,101 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         this.searchResults = [];
         this.isSearchActive = false;
         this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Add a tag to the active filters
+     */
+    public async addTagFilter(tagId: string): Promise<void> {
+        // Clear any active search when filter is activated
+        this.searchQuery = '';
+        this.searchResults = [];
+        this.isSearchActive = false;
+
+        // Add tag to filter if not already present
+        if (!this.activeFilters.tags.includes(tagId)) {
+            this.activeFilters.tags.push(tagId);
+        }
+
+        // Update filtered rules
+        await this.updateFilteredRules();
+
+        // Update view
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Add a tool to the active filters
+     */
+    public async addToolFilter(toolId: string): Promise<void> {
+        // Clear any active search when filter is activated
+        this.searchQuery = '';
+        this.searchResults = [];
+        this.isSearchActive = false;
+
+        // Add tool to filter if not already present
+        if (!this.activeFilters.tools.includes(toolId)) {
+            this.activeFilters.tools.push(toolId);
+        }
+
+        // Update filtered rules
+        await this.updateFilteredRules();
+
+        // Update view
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Clear all active filters
+     */
+    public clearFilters(): void {
+        this.activeFilters = { tags: [], tools: [] };
+        this.isFilterActive = false;
+        this.filteredRules = [];
+        this._onDidChangeTreeData.fire();
+    }
+
+    /**
+     * Update the filtered rules list based on active filters
+     */
+    private async updateFilteredRules(): Promise<void> {
+        try {
+            // Start with empty filtered rules
+            this.filteredRules = [];
+
+            // If no filters are active, clear filter state
+            if (this.activeFilters.tags.length === 0 && this.activeFilters.tools.length === 0) {
+                this.isFilterActive = false;
+                return;
+            }
+
+            // Set filter active flag
+            this.isFilterActive = true;
+
+            // Build search params
+            const searchParams: any = {
+                include_private: this.showPrivateContent,
+                limit: 50,
+            };
+
+            // Add tag filter if present
+            if (this.activeFilters.tags.length > 0) {
+                searchParams.tags = this.activeFilters.tags;
+            }
+
+            // Add tool filter if present (only one tool at a time supported by API)
+            if (this.activeFilters.tools.length > 0) {
+                searchParams.tool_id = this.activeFilters.tools[0];
+            }
+
+            // Search for rules matching the filters
+            const { rules, count } = await this.ruleService.searchRules(searchParams);
+            this.filteredRules = rules || [];
+
+            this.logger.debug(`Found ${count} rules matching filters`, 'RulesExplorerProvider');
+        } catch (error) {
+            this.logger.error('Error updating filtered rules', error, 'RulesExplorerProvider');
+            this.filteredRules = [];
+        }
     }
 }

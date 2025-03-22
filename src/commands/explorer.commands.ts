@@ -35,6 +35,42 @@ export class ExplorerCommandHandler {
         this.registerClearSearchCommand();
         this.registerBrowseWebsiteCommand();
         this.registerRefreshExplorerCommand();
+        this.registerFilterByTagCommand();
+        this.registerFilterByToolCommand();
+        this.registerClearFiltersCommand();
+    }
+
+    /**
+     * Register command to filter rules by tag
+     */
+    private registerFilterByTagCommand(): void {
+        const disposable = vscode.commands.registerCommand('codingrules-ai.filterByTag', async (tagId: string) => {
+            await this.rulesExplorerProvider.addTagFilter(tagId);
+        });
+
+        this.context.subscriptions.push(disposable);
+    }
+
+    /**
+     * Register command to filter rules by tool
+     */
+    private registerFilterByToolCommand(): void {
+        const disposable = vscode.commands.registerCommand('codingrules-ai.filterByTool', async (toolId: string) => {
+            await this.rulesExplorerProvider.addToolFilter(toolId);
+        });
+
+        this.context.subscriptions.push(disposable);
+    }
+
+    /**
+     * Register command to clear all filters
+     */
+    private registerClearFiltersCommand(): void {
+        const disposable = vscode.commands.registerCommand('codingrules-ai.clearFilters', () => {
+            this.rulesExplorerProvider.clearFilters();
+        });
+
+        this.context.subscriptions.push(disposable);
     }
 
     /**

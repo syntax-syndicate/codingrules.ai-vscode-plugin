@@ -12,6 +12,14 @@ export class RuleService {
     private supabaseService: SupabaseService;
     private logger: Logger = Logger.getInstance();
 
+    // Cache for tag and tool rule counts
+    private tagRuleCountCache: Map<string, number> = new Map();
+    private toolRuleCountCache: Map<string, number> = new Map();
+
+    // Cache for tag and tool preview rules
+    private tagPreviewRulesCache: Map<string, Rule[]> = new Map();
+    private toolPreviewRulesCache: Map<string, Rule[]> = new Map();
+
     private constructor() {
         this.supabaseService = SupabaseService.getInstance();
     }
@@ -116,5 +124,109 @@ export class RuleService {
             this.logger.error('Error fetching user profile', error, 'RuleService');
             return null;
         }
+    }
+
+    /**
+     * Get the count of rules associated with a specific tag
+     */
+    public async getRuleCountForTag(tagId: string): Promise<number> {
+        try {
+            // Check cache first
+            if (this.tagRuleCountCache.has(tagId)) {
+                return this.tagRuleCountCache.get(tagId) || 0;
+            }
+
+            // Fetch from service
+            const count = await this.supabaseService.getRuleCountForTag(tagId);
+
+            // Cache the result
+            this.tagRuleCountCache.set(tagId, count);
+
+            return count;
+        } catch (error) {
+            this.logger.error('Error getting rule count for tag', error, 'RuleService');
+            return 0;
+        }
+    }
+
+    /**
+     * Get top rules for a specific tag
+     */
+    public async getTopRulesForTag(tagId: string, limit: number = 5): Promise<Rule[]> {
+        try {
+            // Check cache first
+            const cacheKey = tagId;
+            if (this.tagPreviewRulesCache.has(cacheKey)) {
+                return this.tagPreviewRulesCache.get(cacheKey) || [];
+            }
+
+            // Fetch from service
+            const rules = await this.supabaseService.getTopRulesForTag(tagId, limit);
+
+            // Cache the result
+            this.tagPreviewRulesCache.set(cacheKey, rules);
+
+            return rules;
+        } catch (error) {
+            this.logger.error('Error getting top rules for tag', error, 'RuleService');
+            return [];
+        }
+    }
+
+    /**
+     * Get the count of rules associated with a specific tool
+     */
+    public async getRuleCountForTool(toolId: string): Promise<number> {
+        try {
+            // Check cache first
+            if (this.toolRuleCountCache.has(toolId)) {
+                return this.toolRuleCountCache.get(toolId) || 0;
+            }
+
+            // Fetch from service
+            const count = await this.supabaseService.getRuleCountForTool(toolId);
+
+            // Cache the result
+            this.toolRuleCountCache.set(toolId, count);
+
+            return count;
+        } catch (error) {
+            this.logger.error('Error getting rule count for tool', error, 'RuleService');
+            return 0;
+        }
+    }
+
+    /**
+     * Get top rules for a specific tool
+     */
+    public async getTopRulesForTool(toolId: string, limit: number = 5): Promise<Rule[]> {
+        try {
+            // Check cache first
+            const cacheKey = toolId;
+            if (this.toolPreviewRulesCache.has(cacheKey)) {
+                return this.toolPreviewRulesCache.get(cacheKey) || [];
+            }
+
+            // Fetch from service
+            const rules = await this.supabaseService.getTopRulesForTool(toolId, limit);
+
+            // Cache the result
+            this.toolPreviewRulesCache.set(cacheKey, rules);
+
+            return rules;
+        } catch (error) {
+            this.logger.error('Error getting top rules for tool', error, 'RuleService');
+            return [];
+        }
+    }
+
+    /**
+     * Clear all caches
+     */
+    public clearCaches(): void {
+        this.tagRuleCountCache.clear();
+        this.toolRuleCountCache.clear();
+        this.tagPreviewRulesCache.clear();
+        this.toolPreviewRulesCache.clear();
     }
 }

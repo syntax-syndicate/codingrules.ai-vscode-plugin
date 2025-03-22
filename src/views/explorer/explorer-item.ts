@@ -10,12 +10,24 @@ export enum RuleExplorerItemType {
     TAG = 'tag',
     TOOL = 'tool',
     LOADING = 'loading',
+    ACTION = 'action', // For actions like "Show all rules"
+    FILTER = 'filter', // For active filter items
 }
 
 /**
  * TreeItem for the Rules Explorer
  */
 export class RuleExplorerItem extends vscode.TreeItem {
+    /**
+     * Track if children have been fetched for this item (for expandable tags/tools)
+     */
+    public childrenFetched: boolean = false;
+
+    /**
+     * Count of associated rules (for tags/tools)
+     */
+    public count?: number;
+
     /**
      * Get the data ID, used for fetching detailed information
      */
@@ -32,11 +44,23 @@ export class RuleExplorerItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly data?: Rule | Tag | Tool,
+        count?: number,
     ) {
-        super(label, collapsibleState);
+        // If count is provided, include it in the displayed label
+        const displayLabel = count !== undefined ? `${label} (${count})` : label;
+        super(displayLabel, collapsibleState);
+
+        // Store the count for reference
+        this.count = count;
 
         // Set different icons based on type
         switch (type) {
+            case RuleExplorerItemType.ACTION:
+                this.iconPath = new vscode.ThemeIcon('arrow-right');
+                break;
+            case RuleExplorerItemType.FILTER:
+                this.iconPath = new vscode.ThemeIcon('filter');
+                break;
             case RuleExplorerItemType.CATEGORY:
                 this.iconPath = new vscode.ThemeIcon('folder');
                 break;

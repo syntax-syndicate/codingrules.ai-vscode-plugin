@@ -482,4 +482,118 @@ export class SupabaseService {
             return null;
         }
     }
+
+    /**
+     * Get the count of rules associated with a specific tag
+     */
+    public async getRuleCountForTag(tagId: string): Promise<number> {
+        try {
+            const { count, error } = await this.client
+                .from('rule_tags')
+                .select('*', { count: 'exact' })
+                .eq('tag_id', tagId);
+
+            if (error) {
+                throw error;
+            }
+
+            return count || 0;
+        } catch (error) {
+            this.logger.error('Error getting rule count for tag', error, 'SupabaseService');
+            return 0;
+        }
+    }
+
+    /**
+     * Get top rules for a specific tag
+     */
+    public async getTopRulesForTag(tagId: string, limit: number = 5): Promise<Rule[]> {
+        try {
+            // Ensure auth state is up-to-date
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            const { data, error } = await this.client
+                .from('rules')
+                .select('*, rule_tags!inner(tag_id, tags!inner(*))')
+                .eq('rule_tags.tag_id', tagId)
+                .eq('is_archived', false)
+                .eq('is_active', true)
+                // Handle private rules
+                .or(
+                    isUserAuthenticated && currentUserId
+                        ? `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`
+                        : 'is_private.eq.false',
+                )
+                .order('upvote_count', { ascending: false })
+                .limit(limit);
+
+            if (error) {
+                throw error;
+            }
+
+            return data ? data.map((item) => this.transformRuleData(item)) : [];
+        } catch (error) {
+            this.logger.error('Error getting top rules for tag', error, 'SupabaseService');
+            return [];
+        }
+    }
+
+    /**
+     * Get the count of rules associated with a specific tool
+     */
+    public async getRuleCountForTool(toolId: string): Promise<number> {
+        try {
+            const { count, error } = await this.client
+                .from('rules')
+                .select('*', { count: 'exact' })
+                .eq('tool_id', toolId)
+                .eq('is_archived', false)
+                .eq('is_active', true);
+
+            if (error) {
+                throw error;
+            }
+
+            return count || 0;
+        } catch (error) {
+            this.logger.error('Error getting rule count for tool', error, 'SupabaseService');
+            return 0;
+        }
+    }
+
+    /**
+     * Get top rules for a specific tool
+     */
+    public async getTopRulesForTool(toolId: string, limit: number = 5): Promise<Rule[]> {
+        try {
+            // Ensure auth state is up-to-date
+            const isUserAuthenticated = this.isAuthenticated;
+            const currentUserId = this.currentUser?.id;
+
+            const { data, error } = await this.client
+                .from('rules')
+                .select('*, rule_tags(tag_id, tags(*))')
+                .eq('tool_id', toolId)
+                .eq('is_archived', false)
+                .eq('is_active', true)
+                // Handle private rules
+                .or(
+                    isUserAuthenticated && currentUserId
+                        ? `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`
+                        : 'is_private.eq.false',
+                )
+                .order('upvote_count', { ascending: false })
+                .limit(limit);
+
+            if (error) {
+                throw error;
+            }
+
+            return data ? data.map((item) => this.transformRuleData(item)) : [];
+        } catch (error) {
+            this.logger.error('Error getting top rules for tool', error, 'SupabaseService');
+            return [];
+        }
+    }
 }
