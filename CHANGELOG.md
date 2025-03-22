@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0](https://github.com/codingrules-ai/vscode-plugin/compare/v0.5.3...v1.0.0) (2025-03-22)
+
+### Documentation
+
+- update README ([f958358](https://github.com/codingrules-ai/vscode-plugin/commit/f9583585b3722a02d2e0bf109f43a089f179c1a8))
+
 ### [0.5.3](https://github.com/codingrules-ai/vscode-plugin/compare/v0.5.2...v0.5.3) (2025-03-22)
 
 ### Bug Fixes
