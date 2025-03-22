@@ -153,35 +153,53 @@ export async function activate(context: vscode.ExtensionContext) {
                         }
                     }
 
-                    // Show file picker for download location
+                    // Get current workspace folder
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-                    // Let the user select the folder
-                    const folderUri = await vscode.window.showOpenDialog({
-                        canSelectFiles: false,
-                        canSelectFolders: true,
-                        canSelectMany: false,
-                        openLabel: 'Select Folder to Save Rule',
-                        defaultUri: workspaceFolder ? vscode.Uri.file(workspaceFolder) : undefined,
-                    });
+                    if (!workspaceFolder) {
+                        // No workspace is open, show a file picker as fallback
+                        vscode.window.showWarningMessage(
+                            'No workspace folder is open. Please select a folder to save the rule.',
+                        );
 
-                    if (!folderUri || folderUri.length === 0) {
-                        // User cancelled
-                        return;
+                        const folderUri = await vscode.window.showOpenDialog({
+                            canSelectFiles: false,
+                            canSelectFolders: true,
+                            canSelectMany: false,
+                            openLabel: 'Select Folder to Save Rule',
+                        });
+
+                        if (!folderUri || folderUri.length === 0) {
+                            // User cancelled
+                            return;
+                        }
+
+                        // Download the rule to selected folder
+                        const filePath = await ruleDownloaderService.downloadRule(rule, {
+                            directory: folderUri[0].fsPath,
+                            format: selectedFormat,
+                            includeMetadata: true,
+                        });
+
+                        // Open the file
+                        const openDocument = await vscode.workspace.openTextDocument(filePath);
+                        await vscode.window.showTextDocument(openDocument);
+
+                        vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded.`);
+                    } else {
+                        // Download directly to workspace folder
+                        const filePath = await ruleDownloaderService.downloadRule(rule, {
+                            directory: workspaceFolder,
+                            format: selectedFormat,
+                            includeMetadata: true,
+                        });
+
+                        // Open the file
+                        const openDocument = await vscode.workspace.openTextDocument(filePath);
+                        await vscode.window.showTextDocument(openDocument);
+
+                        vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded to workspace.`);
                     }
-
-                    // Download the rule
-                    const filePath = await ruleDownloaderService.downloadRule(rule, {
-                        directory: folderUri[0].fsPath,
-                        format: selectedFormat,
-                        includeMetadata: true,
-                    });
-
-                    // Open the file
-                    const openDocument = await vscode.workspace.openTextDocument(filePath);
-                    await vscode.window.showTextDocument(openDocument);
-
-                    vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded.`);
                 } catch (error) {
                     logger.error('Error downloading rule', error, 'Extension');
                     vscode.window.showErrorMessage(

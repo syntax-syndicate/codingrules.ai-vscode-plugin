@@ -39,9 +39,6 @@ export class RuleDownloaderService {
                 throw new Error('Rule title is undefined');
             }
 
-            // Generate filename-safe version of the title
-            const sanitizedTitle = this.sanitizeFilename(rule.title);
-
             // Get content of the rule
             const content = rule.content;
 
@@ -80,11 +77,57 @@ export class RuleDownloaderService {
             }
 
             // Create full file path
-            const filename = `${sanitizedTitle}${format}`;
-            const filePath = path.join(saveDirectory, filename);
+            let filename: string;
 
-            // Create URI for the file
+            // Use predefined filenames for AI tool formats
+            if (format === AIToolFormat.CLINE) {
+                filename = '.clinerules';
+            } else if (format === AIToolFormat.CURSOR) {
+                filename = '.cursorrules';
+            } else if (format === AIToolFormat.WINDSURF) {
+                filename = '.windsurfrules';
+            } else if (format === AIToolFormat.GITHUB_COPILOT) {
+                filename = 'copilot-instructions.md';
+            } else {
+                // For other formats, use the rule title
+                const sanitizedTitle = this.sanitizeFilename(rule.title);
+                filename = `${sanitizedTitle}${format}`;
+            }
+
+            const filePath = path.join(saveDirectory, filename);
             const fileUri = vscode.Uri.file(filePath);
+
+            // Check if file already exists
+            try {
+                const stat = await vscode.workspace.fs.stat(fileUri);
+                if (stat) {
+                    // File exists, ask user what to do
+                    const choice = await vscode.window.showInformationMessage(
+                        `File "${filename}" already exists. What would you like to do?`,
+                        { modal: true },
+                        'Override',
+                        'Merge',
+                    );
+
+                    if (!choice) {
+                        // User cancelled by clicking the X or pressing Esc
+                        return filePath;
+                    }
+
+                    if (choice === 'Merge') {
+                        // Read existing content and merge with new content
+                        const existingBuffer = await vscode.workspace.fs.readFile(fileUri);
+                        const existingContent = Buffer.from(existingBuffer).toString('utf8');
+
+                        // Create merged content - separate existing and new content with a divider
+                        formattedContent = `${existingContent}\n\n${'='.repeat(40)}\n\n${formattedContent}`;
+                    }
+                    // If choice is 'Override', we will continue with the original formattedContent
+                }
+            } catch (err) {
+                // File doesn't exist, continue with normal save
+                this.logger.debug(`File "${filename}" doesn't exist yet, creating new file`, 'RuleDownloaderService');
+            }
 
             // Write to file
             await vscode.workspace.fs.writeFile(fileUri, Buffer.from(formattedContent, 'utf8'));
