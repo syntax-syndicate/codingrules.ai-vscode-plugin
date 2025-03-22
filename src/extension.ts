@@ -182,10 +182,11 @@ export async function activate(context: vscode.ExtensionContext) {
                         });
 
                         // Open the file
-                        const openDocument = await vscode.workspace.openTextDocument(filePath);
-                        await vscode.window.showTextDocument(openDocument);
-
-                        vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded.`);
+                        if (filePath) {
+                            const openDocument = await vscode.workspace.openTextDocument(filePath);
+                            await vscode.window.showTextDocument(openDocument);
+                            vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded.`);
+                        }
                     } else {
                         // Download directly to workspace folder
                         const filePath = await ruleDownloaderService.downloadRule(rule, {
@@ -195,10 +196,13 @@ export async function activate(context: vscode.ExtensionContext) {
                         });
 
                         // Open the file
-                        const openDocument = await vscode.workspace.openTextDocument(filePath);
-                        await vscode.window.showTextDocument(openDocument);
-
-                        vscode.window.showInformationMessage(`Rule "${rule.title}" has been downloaded to workspace.`);
+                        if (filePath) {
+                            const openDocument = await vscode.workspace.openTextDocument(filePath);
+                            await vscode.window.showTextDocument(openDocument);
+                            vscode.window.showInformationMessage(
+                                `Rule "${rule.title}" has been downloaded to workspace.`,
+                            );
+                        }
                     }
                 } catch (error) {
                     logger.error('Error downloading rule', error, 'Extension');

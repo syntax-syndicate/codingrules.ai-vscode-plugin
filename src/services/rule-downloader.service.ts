@@ -32,7 +32,7 @@ export class RuleDownloaderService {
     /**
      * Download and save a rule to disk
      */
-    public async downloadRule(rule: Rule, options: RuleSaveOptions = {}): Promise<string> {
+    public async downloadRule(rule: Rule, options: RuleSaveOptions = {}): Promise<string | null> {
         try {
             if (!rule.title) {
                 this.logger.error('Cannot download rule: title is undefined', null, 'RuleDownloaderService');
@@ -111,7 +111,7 @@ export class RuleDownloaderService {
 
                     if (!choice) {
                         // User cancelled by clicking the X or pressing Esc
-                        return filePath;
+                        return null;
                     }
 
                     if (choice === 'Merge') {

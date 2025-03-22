@@ -129,19 +129,74 @@ export class RuleViewer {
                 return;
             }
 
-            // Add format to the rule object
-            const ruleWithFormat = {
-                ...this.rule,
-                selectedFormat: format,
-            };
+            // Initialize rule downloader service
+            const ruleDownloaderService = new RuleDownloaderService();
 
-            // Call the main download command directly
-            await vscode.commands.executeCommand('codingrules-ai.downloadRule', ruleWithFormat);
+            // Get current workspace folder
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+            if (!workspaceFolder) {
+                // No workspace is open, show a file picker as fallback
+                vscode.window.showWarningMessage(
+                    'No workspace folder is open. Please select a folder to save the rule.',
+                );
+
+                const folderUri = await vscode.window.showOpenDialog({
+                    canSelectFiles: false,
+                    canSelectFolders: true,
+                    canSelectMany: false,
+                    openLabel: 'Select Folder to Save Rule',
+                });
+
+                if (!folderUri || folderUri.length === 0) {
+                    // User cancelled
+                    return;
+                }
+
+                // Download the rule to selected folder
+                const filePath = await ruleDownloaderService.downloadRule(this.rule, {
+                    directory: folderUri[0].fsPath,
+                    format: format,
+                    includeMetadata: true,
+                });
+
+                // Open the file
+                if (filePath) {
+                    const openDocument = await vscode.workspace.openTextDocument(filePath);
+                    await vscode.window.showTextDocument(openDocument);
+                    vscode.window.showInformationMessage(`Rule "${this.rule.title}" has been downloaded.`);
+                }
+            } else {
+                // Download rule to workspace - RuleDownloaderService will handle file existence checks
+                const downloadedPath = await ruleDownloaderService.downloadRule(this.rule, {
+                    directory: workspaceFolder,
+                    format: format,
+                    includeMetadata: true,
+                });
+
+                // Open the file if it was downloaded (not cancelled)
+                if (downloadedPath) {
+                    const openDocument = await vscode.workspace.openTextDocument(downloadedPath);
+                    await vscode.window.showTextDocument(openDocument);
+                }
+            }
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
+    }
+
+    /**
+     * Sanitize a filename to be safe for all operating systems
+     */
+    private sanitizeFilename(filename: string): string {
+        // Replace invalid characters with underscores
+        return filename
+            .replace(/[/\\?%*:|"<>]/g, '_') // Remove characters illegal in Windows
+            .replace(/\s+/g, '_') // Replace spaces with underscores
+            .replace(/_{2,}/g, '_') // Replace multiple underscores with a single one
+            .toLowerCase(); // Lowercase for consistency
     }
 
     /**
@@ -278,19 +333,26 @@ export class RuleViewer {
             display: flex;
             flex-direction: column;
             gap: 1rem;
+            border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+            padding-top: 1.5rem;
           }
           .download-header {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin-bottom: 1rem;
           }
           .download-header h3 {
             margin: 0;
+            font-size: 1.1rem;
+            color: var(--vscode-editor-foreground);
           }
           .download-options {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
+            gap: 0.8rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
           }
           .download-group {
             margin-bottom: 1rem;
@@ -317,6 +379,39 @@ export class RuleViewer {
           }
           button:hover {
             background-color: var(--vscode-button-hoverBackground);
+          }
+          select {
+            background-color: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            min-width: 250px;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="gray" d="M4.5 5l3.5 3.5l3.5 -3.5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 0.7em top 50%;
+            background-size: 0.65em auto;
+            padding-right: 1.5rem;
+            transition: border-color 0.2s;
+          }
+          select:hover {
+            border-color: var(--vscode-focusBorder);
+          }
+          select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            border-color: var(--vscode-focusBorder);
+          }
+          select option, select optgroup {
+            background-color: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+          }
+          .format-selected {
+            border-color: var(--vscode-inputValidation-infoBorder, var(--vscode-focusBorder));
+            background-color: var(--vscode-inputValidation-infoBackground, var(--vscode-dropdown-background));
           }
           .upvotes {
             display: inline-flex;
@@ -355,6 +450,55 @@ export class RuleViewer {
           .copy-tooltip.show {
             opacity: 1;
           }
+          .download-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+          }
+          .download-button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: background-color 0.2s;
+            opacity: 1;
+          }
+          .download-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+          .download-button:hover:not(:disabled) {
+            background-color: var(--vscode-button-hoverBackground);
+          }
+          .download-button::before {
+            content: "↓";
+            font-weight: bold;
+          }
+          .copy-button {
+            background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+            color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: background-color 0.2s;
+          }
+          .copy-button:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+          }
+          .copy-button::before {
+            content: "📋";
+          }
         </style>
       </head>
       <body>
@@ -384,27 +528,33 @@ export class RuleViewer {
         
         <div class="download-section">
           <div class="download-header">
-            <h3>Download or Copy</h3>
-          </div>
-          
-          <div class="download-options">
-            <button id="copy-to-clipboard" title="Copy to clipboard">📋 Copy to clipboard</button>
+            <h3>Download or Copy Rule</h3>
           </div>
           
           <div class="download-group">
-            <div class="download-group-title">AI Tool Formats</div>
             <div class="download-options">
-              <button id="download-cline">Cline (.clinerules)</button>
-              <button id="download-cursor">Cursor (.cursorrules)</button>
-              <button id="download-windsurf">Windsurf (.windsurfrules)</button>
+              <button id="copy-to-clipboard" class="copy-button">Copy to clipboard</button>
             </div>
           </div>
           
           <div class="download-group">
-            <div class="download-group-title">General Formats</div>
+            <div class="download-group-title">Download Format</div>
             <div class="download-options">
-              <button id="download-md">Markdown (.md)</button>
-              <button id="download-txt">Text (.txt)</button>
+              <select id="format-selector">
+                <option value="" disabled selected>Select format...</option>
+                <optgroup label="AI Tool Formats">
+                  <option value=".clinerules">Cline (.clinerules)</option>
+                  <option value=".cursorrules">Cursor (.cursorrules)</option>
+                  <option value=".windsurfrules">Windsurf (.windsurfrules)</option>
+                </optgroup>
+                <optgroup label="General Formats">
+                  <option value=".md">Markdown (.md)</option>
+                  <option value=".txt">Text (.txt)</option>
+                </optgroup>
+              </select>
+            </div>
+            <div class="download-actions">
+              <button id="download-rule" disabled class="download-button">Download</button>
             </div>
           </div>
         </div>
@@ -426,24 +576,29 @@ export class RuleViewer {
             }
           });
           
-          document.getElementById('download-cline').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.clinerules' });
+          // Format selector
+          const formatSelector = document.getElementById('format-selector');
+          const downloadButton = document.getElementById('download-rule');
+          
+          // Enable download button when format is selected
+          formatSelector.addEventListener('change', () => {
+            const hasValue = !!formatSelector.value;
+            downloadButton.disabled = !hasValue;
+            
+            // Add visual feedback when format is selected
+            if (hasValue) {
+              formatSelector.classList.add('format-selected');
+            } else {
+              formatSelector.classList.remove('format-selected');
+            }
           });
           
-          document.getElementById('download-cursor').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.cursorrules' });
-          });
-          
-          document.getElementById('download-windsurf').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.windsurfrules' });
-          });
-          
-          document.getElementById('download-md').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.md' });
-          });
-          
-          document.getElementById('download-txt').addEventListener('click', () => {
-            vscode.postMessage({ command: 'downloadRule', format: '.txt' });
+          // Handle download
+          downloadButton.addEventListener('click', () => {
+            const format = formatSelector.value;
+            if (format) {
+              vscode.postMessage({ command: 'downloadRule', format });
+            }
           });
 
           // Copy to clipboard functionality
