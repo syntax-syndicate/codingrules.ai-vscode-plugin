@@ -96,13 +96,14 @@ export class RuleViewer {
                 return;
             }
 
-            // Use our centralized download command with the format (this will add format to the rule object)
+            // Add format to the rule object
             const ruleWithFormat = {
                 ...this.rule,
                 selectedFormat: format,
             };
 
-            await vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', ruleWithFormat);
+            // Call the main download command directly
+            await vscode.commands.executeCommand('codingrules-ai.downloadRule', ruleWithFormat);
         } catch (error) {
             vscode.window.showErrorMessage(
                 `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,

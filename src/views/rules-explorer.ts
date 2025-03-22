@@ -3,6 +3,7 @@ import { Rule, Tag, Tool } from '../models/rule.model';
 import { SupabaseService } from '../services/supabase.service';
 import { Config } from '../config';
 import { AuthService } from '../services/auth.service';
+import { Logger } from '../utils/logger';
 
 /**
  * Tree item types in the Rules Explorer
@@ -19,6 +20,17 @@ export enum RuleExplorerItemType {
  * TreeItem for the Rules Explorer
  */
 export class RuleExplorerItem extends vscode.TreeItem {
+    /**
+     * Get the data ID, used for fetching detailed information
+     */
+    get dataId(): string | undefined {
+        if (!this.data) {
+            return undefined;
+        }
+
+        return (this.data as any).id;
+    }
+
     constructor(
         public readonly type: RuleExplorerItemType,
         public readonly label: string,
@@ -40,11 +52,12 @@ export class RuleExplorerItem extends vscode.TreeItem {
                     this.iconPath = new vscode.ThemeIcon('lock');
                     this.tooltip = `${rule.title} (Private)`;
                     // Add extra indication of private in the description
-                    this.description = `${rule.upvote_count?.toString() || '0'} ⭐ (Private)`;
+                    this.description = `${rule.upvote_count?.toString() || '0'} 👍 (Private)`;
                 } else {
+                    // Use book icon consistently for all rules
                     this.iconPath = new vscode.ThemeIcon('book');
                     this.tooltip = rule?.title || '';
-                    this.description = `${rule.upvote_count?.toString() || '0'} ⭐`;
+                    this.description = `${rule.upvote_count?.toString() || '0'} 👍`;
                 }
                 break;
             case RuleExplorerItemType.TAG:
@@ -96,6 +109,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     private tools: Tool[] = [];
     private isLoading = false;
     private showPrivateContent = false;
+    private logger: Logger = Logger.getInstance();
 
     constructor(context: vscode.ExtensionContext) {
         try {
@@ -112,7 +126,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                 // Set initial state based on auth - this will be properly updated in refreshData
                 this.showPrivateContent = this.authService.isAuthenticated;
             } catch (e) {
-                console.error('Error getting AuthService:', e);
+                this.logger.error('Error getting AuthService', e, 'RulesExplorerProvider');
                 this.showPrivateContent = false;
             }
 
@@ -122,7 +136,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             // Register command handlers
             context.subscriptions.push(
                 vscode.commands.registerCommand(
-                    'codingrules-ai.downloadRule',
+                    'codingrules-ai.downloadRuleHandler',
                     async (item?: RuleExplorerItem | Rule) => {
                         // If this is a tree item from the explorer, validate and extract the rule data
                         if (item instanceof RuleExplorerItem) {
@@ -139,75 +153,60 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                                 return; // Error already shown to user
                             }
 
-                            // Use the command with the validated rule
-                            vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', completeRule);
+                            // Call the main download command
+                            vscode.commands.executeCommand('codingrules-ai.downloadRule', completeRule);
                         } else {
                             // If it's already a Rule object (e.g., from the details view), pass it through
-                            vscode.commands.executeCommand('codingrules-ai.downloadRuleInternal', item);
+                            vscode.commands.executeCommand('codingrules-ai.downloadRule', item);
                         }
                     },
                 ),
             );
         } catch (error) {
-            console.error('Failed to initialize RulesExplorerProvider:', error);
-            vscode.window.showErrorMessage(
-                `Failed to initialize CodingRules.ai: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            this.logger.error('Failed to initialize RulesExplorerProvider', error, 'RulesExplorerProvider');
+            vscode.window.showErrorMessage('Failed to load rules explorer. Please try again later.');
         }
     }
 
     /**
-     * Ensure we have a complete rule with all required data before download
+     * Make sure we have a complete rule with all necessary data
      */
     private async ensureCompleteRule(rule: Rule): Promise<Rule | null> {
-        // Check if we have the necessary data to download
-        if (!rule.id) {
-            vscode.window.showErrorMessage('Cannot download rule: Missing rule ID.');
-            return null;
+        // If the rule has everything we need, just return it
+        if (rule.content) {
+            return rule;
         }
 
-        // Check if title exists
-        if (!rule.title) {
-            vscode.window.showErrorMessage('Cannot download rule: Missing title information.');
-            return null;
-        }
+        try {
+            // Otherwise, fetch the complete rule
+            const completeRule = await this.supabaseService.getRule(rule.id);
 
-        // Check if content exists
-        if (!rule.content) {
-            try {
-                // Try to fetch the complete rule from the database
-                const completeRule = await this.supabaseService.getRule(rule.id);
-
-                if (!completeRule) {
-                    vscode.window.showErrorMessage('Cannot download rule: Unable to fetch rule details.');
-                    return null;
-                }
-
-                if (!completeRule.content) {
-                    vscode.window.showErrorMessage(`Cannot download rule "${rule.title}": Rule has no content.`);
-                    return null;
-                }
-
-                return completeRule;
-            } catch (error) {
-                console.error('Error fetching complete rule:', error);
-                vscode.window.showErrorMessage(
-                    `Failed to download rule: ${error instanceof Error ? error.message : String(error)}`,
-                );
+            if (!completeRule) {
+                vscode.window.showErrorMessage('Failed to load complete rule details for download.');
                 return null;
             }
-        }
 
-        return rule;
+            return completeRule;
+        } catch (error) {
+            this.logger.error('Error fetching complete rule', error, 'RulesExplorerProvider');
+            vscode.window.showErrorMessage('Failed to load rule details for download.');
+            return null;
+        }
     }
 
+    /**
+     * Refresh the tree view
+     */
     refresh(): void {
         this._onDidChangeTreeData.fire();
     }
 
+    /**
+     * Refresh all data from the API
+     */
     async refreshData(): Promise<void> {
         if (!this.supabaseService) {
-            console.error('SupabaseService not available');
+            this.logger.error('SupabaseService not available', null, 'RulesExplorerProvider');
             return;
         }
 
@@ -222,21 +221,14 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
                 // Update our private content flag based on the refreshed state
                 const isAuthenticated = this.authService.isAuthenticated;
-                console.log(
-                    'Authentication state after refresh:',
-                    isAuthenticated ? 'authenticated' : 'not authenticated',
+                this.logger.debug(
+                    `Authentication state after refresh: ${isAuthenticated ? 'authenticated' : 'not authenticated'}`,
+                    'RulesExplorerProvider',
                 );
 
                 // Set the flag that controls whether to show private content
                 this.showPrivateContent = isAuthenticated;
             }
-
-            // Load rules
-            const { rules } = await this.supabaseService.searchRules({
-                include_private: this.showPrivateContent,
-                limit: 50,
-            });
-            this.rules = rules || [];
 
             // Load top rules
             const { rules: topRules } = await this.supabaseService.getTopUpvotedRules(10);
@@ -250,7 +242,7 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             const tools = await this.supabaseService.getTools();
             this.tools = (tools || []).sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
-            console.error('Error refreshing rules data:', error);
+            this.logger.error('Error refreshing rules data', error, 'RulesExplorerProvider');
             vscode.window.showErrorMessage('Failed to load rules data. Please try again later.');
         } finally {
             this.isLoading = false;
@@ -258,194 +250,77 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
         }
     }
 
+    /**
+     * Get a tree item for a given element
+     */
     getTreeItem(element: RuleExplorerItem): vscode.TreeItem {
         return element;
     }
 
+    /**
+     * Get children for a tree item
+     */
     async getChildren(element?: RuleExplorerItem): Promise<RuleExplorerItem[]> {
-        // Show loading indicator
-        if (this.isLoading && !element) {
+        if (this.isLoading) {
             return [
                 new RuleExplorerItem(RuleExplorerItemType.LOADING, 'Loading...', vscode.TreeItemCollapsibleState.None),
             ];
         }
 
-        // Root level - show categories
+        // Root level
         if (!element) {
-            const categories = [];
+            const rootItems: RuleExplorerItem[] = [];
 
-            // Add authentication status
-            if (this.showPrivateContent) {
-                // Show profile status when authenticated
-                const profileItem = new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    `Logged in as ${this.authService.currentUser?.email || 'User'}`,
-                    vscode.TreeItemCollapsibleState.None,
-                );
-                profileItem.iconPath = new vscode.ThemeIcon('account');
-                profileItem.command = {
-                    command: 'codingrules-ai.viewProfile',
-                    title: 'View Profile',
-                    arguments: [],
-                };
-                categories.push(profileItem);
-
-                // Add private content section when logged in
-                const privateContentItem = new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    'My Private Content',
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                );
-                privateContentItem.iconPath = new vscode.ThemeIcon('lock');
-                categories.push(privateContentItem);
-            } else {
-                // Show login option when not authenticated
+            // Show authorization status if not authenticated
+            if (!this.showPrivateContent) {
                 const loginItem = new RuleExplorerItem(
                     RuleExplorerItemType.CATEGORY,
-                    'Login to access private content',
+                    'Log in to see private content',
                     vscode.TreeItemCollapsibleState.None,
                 );
-                loginItem.iconPath = new vscode.ThemeIcon('person');
                 loginItem.command = {
                     command: 'codingrules-ai.login',
-                    title: 'Login',
-                    arguments: [],
+                    title: 'Log in',
                 };
-                categories.push(loginItem);
+                rootItems.push(loginItem);
             }
 
-            // Add standard categories
-            categories.push(
-                new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    'Recent Rules',
-                    vscode.TreeItemCollapsibleState.Expanded,
-                ),
-                new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    'Most Upvoted Rules',
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                ),
-                new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    'Browse by Tags',
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                ),
-                new RuleExplorerItem(
-                    RuleExplorerItemType.CATEGORY,
-                    'Browse by Tools',
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                ),
+            // Root categories
+            const topRulesItem = new RuleExplorerItem(
+                RuleExplorerItemType.CATEGORY,
+                'Top Rules',
+                vscode.TreeItemCollapsibleState.Expanded,
             );
 
-            return categories;
+            const tagsItem = new RuleExplorerItem(
+                RuleExplorerItemType.CATEGORY,
+                'Tags',
+                vscode.TreeItemCollapsibleState.Collapsed,
+            );
+
+            const toolsItem = new RuleExplorerItem(
+                RuleExplorerItemType.CATEGORY,
+                'AI Tools',
+                vscode.TreeItemCollapsibleState.Collapsed,
+            );
+
+            rootItems.push(topRulesItem, tagsItem, toolsItem);
+
+            return rootItems;
         }
 
-        // Handle different category items
+        // Render children based on parent type
         switch (element.label) {
-            case 'My Private Content':
-                // Only return private rules, tags, and tools
-                const privateItems = [];
-
-                // Add private rules section
-                const privateRules = this.rules.filter((rule) => rule.is_private === true);
-                if (privateRules.length > 0) {
-                    const privateRulesCategory = new RuleExplorerItem(
-                        RuleExplorerItemType.CATEGORY,
-                        'Private Rules',
-                        vscode.TreeItemCollapsibleState.Collapsed,
-                    );
-                    privateRulesCategory.iconPath = new vscode.ThemeIcon('lock');
-                    privateItems.push(privateRulesCategory);
-                }
-
-                // Add private tags section
-                const privateTags = this.tags.filter((tag) => tag.is_private === true);
-                if (privateTags.length > 0) {
-                    const privateTagsCategory = new RuleExplorerItem(
-                        RuleExplorerItemType.CATEGORY,
-                        'Private Tags',
-                        vscode.TreeItemCollapsibleState.Collapsed,
-                    );
-                    privateTagsCategory.iconPath = new vscode.ThemeIcon('lock');
-                    privateItems.push(privateTagsCategory);
-                }
-
-                // Add private tools section
-                const privateTools = this.tools.filter((tool) => tool.is_private === true);
-                if (privateTools.length > 0) {
-                    const privateToolsCategory = new RuleExplorerItem(
-                        RuleExplorerItemType.CATEGORY,
-                        'Private Tools',
-                        vscode.TreeItemCollapsibleState.Collapsed,
-                    );
-                    privateToolsCategory.iconPath = new vscode.ThemeIcon('lock');
-                    privateItems.push(privateToolsCategory);
-                }
-
-                // If no private content, show a message
-                if (privateItems.length === 0) {
-                    const noPrivateItem = new RuleExplorerItem(
-                        RuleExplorerItemType.CATEGORY,
-                        'No private content found',
-                        vscode.TreeItemCollapsibleState.None,
-                    );
-                    return [noPrivateItem];
-                }
-
-                return privateItems;
-
-            case 'Private Rules':
-                return this.rules
-                    .filter((rule) => rule.is_private === true)
-                    .map(
-                        (rule) =>
-                            new RuleExplorerItem(
-                                RuleExplorerItemType.RULE,
-                                rule.title,
-                                vscode.TreeItemCollapsibleState.None,
-                                rule,
-                            ),
-                    );
-
-            case 'Private Tags':
-                return this.tags
-                    .filter((tag) => tag.is_private === true)
-                    .map(
-                        (tag) =>
-                            new RuleExplorerItem(
-                                RuleExplorerItemType.TAG,
-                                tag.name,
-                                vscode.TreeItemCollapsibleState.Collapsed,
-                                tag,
-                            ),
-                    );
-
-            case 'Private Tools':
-                return this.tools
-                    .filter((tool) => tool.is_private === true)
-                    .map(
-                        (tool) =>
-                            new RuleExplorerItem(
-                                RuleExplorerItemType.TOOL,
-                                tool.name,
-                                vscode.TreeItemCollapsibleState.Collapsed,
-                                tool,
-                            ),
-                    );
-
-            case 'Recent Rules':
-                return this.rules.map(
-                    (rule) =>
+            case 'Top Rules':
+                if (this.topUpvotedRules.length === 0) {
+                    return [
                         new RuleExplorerItem(
                             RuleExplorerItemType.RULE,
-                            rule.title,
+                            'No top rules found',
                             vscode.TreeItemCollapsibleState.None,
-                            rule,
                         ),
-                );
-
-            case 'Most Upvoted Rules':
+                    ];
+                }
                 return this.topUpvotedRules.map(
                     (rule) =>
                         new RuleExplorerItem(
@@ -456,61 +331,48 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                         ),
                 );
 
-            case 'Browse by Tags':
+            case 'Tags':
+                if (this.tags.length === 0) {
+                    return [
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.TAG,
+                            'No tags found',
+                            vscode.TreeItemCollapsibleState.None,
+                        ),
+                    ];
+                }
                 return this.tags.map(
                     (tag) =>
                         new RuleExplorerItem(
                             RuleExplorerItemType.TAG,
                             tag.name,
-                            vscode.TreeItemCollapsibleState.Collapsed,
+                            vscode.TreeItemCollapsibleState.None,
                             tag,
                         ),
                 );
 
-            case 'Browse by Tools':
+            case 'AI Tools':
+                if (this.tools.length === 0) {
+                    return [
+                        new RuleExplorerItem(
+                            RuleExplorerItemType.TOOL,
+                            'No AI tools found',
+                            vscode.TreeItemCollapsibleState.None,
+                        ),
+                    ];
+                }
                 return this.tools.map(
                     (tool) =>
                         new RuleExplorerItem(
                             RuleExplorerItemType.TOOL,
                             tool.name,
-                            vscode.TreeItemCollapsibleState.Collapsed,
+                            vscode.TreeItemCollapsibleState.None,
                             tool,
                         ),
                 );
+
+            default:
+                return [];
         }
-
-        // Handle tag items - show rules with this tag
-        if (element.type === RuleExplorerItemType.TAG && element.data) {
-            const tag = element.data as Tag;
-            const rulesWithTag = this.rules.filter((rule) => rule.tags?.some((t) => t.id === tag.id));
-
-            return rulesWithTag.map(
-                (rule) =>
-                    new RuleExplorerItem(
-                        RuleExplorerItemType.RULE,
-                        rule.title,
-                        vscode.TreeItemCollapsibleState.None,
-                        rule,
-                    ),
-            );
-        }
-
-        // Handle tool items - show rules for this tool
-        if (element.type === RuleExplorerItemType.TOOL && element.data) {
-            const tool = element.data as Tool;
-            const rulesForTool = this.rules.filter((rule) => rule.tool_id === tool.id);
-
-            return rulesForTool.map(
-                (rule) =>
-                    new RuleExplorerItem(
-                        RuleExplorerItemType.RULE,
-                        rule.title,
-                        vscode.TreeItemCollapsibleState.None,
-                        rule,
-                    ),
-            );
-        }
-
-        return [];
     }
 }

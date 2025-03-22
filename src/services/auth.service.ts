@@ -1,7 +1,8 @@
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import * as vscode from 'vscode';
+import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
 import { SupabaseConfig } from '../config';
 import { Database } from '../types/database.types';
+import { Logger } from '../utils/logger';
 
 /**
  * Service for handling authentication with Supabase
@@ -11,72 +12,28 @@ export class AuthService {
     private client: SupabaseClient<Database>;
     private context: vscode.ExtensionContext;
     private _currentUser: User | null = null;
-    private readonly SESSION_KEY = 'codingrules-ai.session';
+    private logger: Logger = Logger.getInstance();
 
     private constructor(config: SupabaseConfig, context: vscode.ExtensionContext) {
         this.client = createClient<Database>(config.url, config.anonKey);
         this.context = context;
 
-        // Set up auth state change listener to ensure state is always up to date
-        this.client.auth.onAuthStateChange((event, session) => {
-            this._currentUser = session?.user || null;
-
-            // Save session when it becomes available
-            if (event === 'SIGNED_IN' && session) {
-                this.saveSession().catch((error) => {
-                    console.error('Error saving session after auth state change:', error);
-                });
-            } else if (event === 'SIGNED_OUT') {
-                this.clearSession().catch((error) => {
-                    console.error('Error clearing session after sign out:', error);
-                });
+        // Set up auth state change listener
+        this.client.auth.onAuthStateChange(async (event, session) => {
+            try {
+                if (event === 'SIGNED_IN' && session) {
+                    this._currentUser = session.user;
+                    await this.saveSession(session);
+                    this.logger.info('User signed in', 'AuthService');
+                } else if (event === 'SIGNED_OUT') {
+                    this._currentUser = null;
+                    await this.clearSession();
+                    this.logger.info('User signed out', 'AuthService');
+                }
+            } catch (error) {
+                this.logger.error('Error handling auth state change', error, 'AuthService');
             }
         });
-    }
-
-    /**
-     * Get singleton instance of AuthService
-     */
-    public static getInstance(config?: SupabaseConfig, context?: vscode.ExtensionContext): AuthService {
-        if (!AuthService.instance && config && context) {
-            AuthService.instance = new AuthService(config, context);
-        }
-
-        if (!AuthService.instance) {
-            throw new Error('AuthService not initialized');
-        }
-
-        return AuthService.instance;
-    }
-
-    /**
-     * Initialize the Auth service with configuration
-     */
-    public static async initialize(config: SupabaseConfig, context: vscode.ExtensionContext): Promise<AuthService> {
-        AuthService.instance = new AuthService(config, context);
-
-        // Initialize by loading any existing session
-        await AuthService.instance.initializeSession();
-
-        return AuthService.instance;
-    }
-
-    /**
-     * Initialize session from storage and refresh current user
-     * This ensures authentication state is properly loaded before UI components use it
-     */
-    public async initializeSession(): Promise<void> {
-        try {
-            // First load any stored session
-            await this.loadSession();
-
-            // Then refresh the current user to ensure state is up-to-date
-            await this.refreshCurrentUser();
-        } catch (error) {
-            console.error('Error initializing session:', error);
-            // Clear any potentially corrupt session
-            await this.clearSession();
-        }
     }
 
     /**
@@ -87,22 +44,6 @@ export class AuthService {
     }
 
     /**
-     * Force refresh the current user state
-     */
-    public async refreshCurrentUser(): Promise<User | null> {
-        try {
-            const { data } = await this.client.auth.getUser();
-            if (data.user) {
-                this._currentUser = data.user;
-            }
-            return this._currentUser;
-        } catch (error) {
-            console.error('Error refreshing user:', error);
-            return this._currentUser;
-        }
-    }
-
-    /**
      * Check if a user is currently authenticated
      */
     public get isAuthenticated(): boolean {
@@ -110,17 +51,60 @@ export class AuthService {
     }
 
     /**
-     * Get the current session token, if any
+     * Get singleton instance of AuthService
      */
-    public async getAccessToken(): Promise<string | null> {
-        const session = await this.client.auth.getSession();
-        return session.data.session?.access_token || null;
+    public static getInstance(): AuthService {
+        if (!AuthService.instance) {
+            throw new Error('AuthService not initialized');
+        }
+        return AuthService.instance;
     }
 
     /**
-     * Log out the current user
+     * Initialize the Auth service with configuration
      */
-    public async logout(): Promise<void> {
+    public static async initialize(config: SupabaseConfig, context: vscode.ExtensionContext): Promise<AuthService> {
+        AuthService.instance = new AuthService(config, context);
+
+        try {
+            // Attempt to restore session on startup
+            await AuthService.instance.restoreSession();
+        } catch (error) {
+            AuthService.instance.logger.error('Error initializing session', error, 'AuthService');
+        }
+
+        return AuthService.instance;
+    }
+
+    /**
+     * Refresh the current user's data
+     */
+    public async refreshCurrentUser(): Promise<void> {
+        try {
+            const { data, error } = await this.client.auth.getUser();
+
+            if (error) {
+                throw error;
+            }
+
+            if (data && data.user) {
+                this._currentUser = data.user;
+                this.logger.debug('Current user refreshed', 'AuthService');
+            } else {
+                this._currentUser = null;
+                this.logger.info('No user session found during refresh', 'AuthService');
+            }
+        } catch (error) {
+            this.logger.error('Error refreshing user', error, 'AuthService');
+            // On refresh error, clear the current user
+            this._currentUser = null;
+        }
+    }
+
+    /**
+     * Sign out the current user
+     */
+    public async signOut(): Promise<void> {
         try {
             const { error } = await this.client.auth.signOut();
 
@@ -130,21 +114,18 @@ export class AuthService {
 
             this._currentUser = null;
             await this.clearSession();
-
-            vscode.window.showInformationMessage('Successfully logged out');
+            this.logger.info('User signed out successfully', 'AuthService');
         } catch (error) {
-            console.error('Logout error:', error);
-            vscode.window.showErrorMessage(`Logout failed: ${error instanceof Error ? error.message : String(error)}`);
+            this.logger.error('Logout error', error, 'AuthService');
             throw error;
         }
     }
 
     /**
-     * Set the session from external tokens (used for web app redirect auth)
+     * Set the session from external tokens (used for extension auth flow)
      */
     public async setSessionFromTokens(accessToken: string, refreshToken: string): Promise<void> {
         try {
-            // Set the session in the Supabase client
             const { data, error } = await this.client.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
@@ -154,85 +135,80 @@ export class AuthService {
                 throw error;
             }
 
-            if (data?.user) {
+            if (data && data.user) {
                 this._currentUser = data.user;
-                await this.saveSession();
-            } else {
-                throw new Error('No user data returned from session');
+
+                if (data.session) {
+                    await this.saveSession(data.session);
+                }
+
+                this.logger.info('Session set from tokens', 'AuthService');
             }
         } catch (error) {
-            console.error('Error setting session from tokens:', error);
+            this.logger.error('Error setting session from tokens', error, 'AuthService');
             throw error;
         }
     }
 
     /**
-     * Load saved session from storage
-     * Returns a Promise to ensure the session is fully loaded before continuing
+     * Restore session from storage
      */
-    private async loadSession(): Promise<boolean> {
+    private async restoreSession(): Promise<void> {
         try {
-            // Attempt to restore session from storage
-            const savedAccessToken = await this.context.secrets.get(this.SESSION_KEY + '.access');
-            const savedRefreshToken = await this.context.secrets.get(this.SESSION_KEY + '.refresh');
+            const session = await this.loadSession();
 
-            if (savedAccessToken && savedRefreshToken) {
-                // Set the session in the Supabase client
-                const { data, error } = await this.client.auth.setSession({
-                    access_token: savedAccessToken,
-                    refresh_token: savedRefreshToken,
-                });
-
-                if (error) {
-                    console.error('Error restoring session:', error);
-                    await this.clearSession();
-                    return false;
-                }
-
-                // Get the user from the session
-                if (data?.user) {
-                    this._currentUser = data.user;
-                    return true;
-                }
+            if (session) {
+                this.logger.debug('Found saved session, attempting to restore', 'AuthService');
+                await this.setSessionFromTokens(session.access_token, session.refresh_token);
+            } else {
+                this.logger.debug('No saved session found', 'AuthService');
             }
-            return false;
         } catch (error) {
-            console.error('Error loading session:', error);
-            // Clear any potentially corrupt session
-            await this.clearSession();
-            return false;
+            this.logger.error('Error restoring session', error, 'AuthService');
+            throw error;
         }
     }
 
     /**
-     * Save current session to storage
+     * Load session from storage
      */
-    private async saveSession(): Promise<void> {
-        if (!this._currentUser) {
-            return;
-        }
-
+    private async loadSession(): Promise<Session | null> {
         try {
-            const { data } = await this.client.auth.getSession();
-            if (data.session) {
-                // Store both tokens separately
-                await this.context.secrets.store(this.SESSION_KEY + '.access', data.session.access_token);
-                await this.context.secrets.store(this.SESSION_KEY + '.refresh', data.session.refresh_token);
+            const sessionData = this.context.globalState.get<string>('codingrules.authSession');
+
+            if (!sessionData) {
+                return null;
             }
+
+            return JSON.parse(sessionData) as Session;
         } catch (error) {
-            console.error('Error saving session:', error);
+            this.logger.error('Error loading session', error, 'AuthService');
+            return null;
         }
     }
 
     /**
-     * Clear saved session from storage
+     * Save session to storage
+     */
+    private async saveSession(session: Session): Promise<void> {
+        try {
+            const sessionData = JSON.stringify(session);
+            await this.context.globalState.update('codingrules.authSession', sessionData);
+        } catch (error) {
+            this.logger.error('Error saving session', error, 'AuthService');
+            throw error;
+        }
+    }
+
+    /**
+     * Clear session from storage
      */
     private async clearSession(): Promise<void> {
         try {
-            await this.context.secrets.delete(this.SESSION_KEY + '.access');
-            await this.context.secrets.delete(this.SESSION_KEY + '.refresh');
+            await this.context.globalState.update('codingrules.authSession', undefined);
         } catch (error) {
-            console.error('Error clearing session:', error);
+            this.logger.error('Error clearing session', error, 'AuthService');
+            throw error;
         }
     }
 }

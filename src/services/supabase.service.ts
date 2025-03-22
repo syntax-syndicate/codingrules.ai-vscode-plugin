@@ -3,6 +3,7 @@ import { Config, SupabaseConfig } from '../config';
 import { AuthService } from './auth.service';
 import { Rule, RuleListResponse, RuleSearchParams } from '../models/rule.model';
 import { Database } from '../types/database.types';
+import { Logger } from '../utils/logger';
 
 /**
  * Service for interacting with Supabase API to fetch rules
@@ -10,8 +11,8 @@ import { Database } from '../types/database.types';
 export class SupabaseService {
     private static instance: SupabaseService;
     private client: SupabaseClient<Database>;
-
     private authService: AuthService | null = null;
+    private logger: Logger = Logger.getInstance();
 
     private constructor(config: SupabaseConfig) {
         this.client = createClient<Database>(config.url, config.anonKey);
@@ -19,7 +20,9 @@ export class SupabaseService {
         // Attempt to get the AuthService if it's already initialized
         try {
             this.authService = AuthService.getInstance();
-        } catch (e) {}
+        } catch (e) {
+            // AuthService not initialized yet, it will be set later
+        }
     }
 
     /**
@@ -56,7 +59,7 @@ export class SupabaseService {
      * Check if a user is currently authenticated
      */
     public get isAuthenticated(): boolean {
-        return this.authService?.currentUser !== null || false;
+        return this.authService?.isAuthenticated || false;
     }
 
     /**
@@ -83,8 +86,8 @@ export class SupabaseService {
 
             return data ? this.transformRuleData(data) : null;
         } catch (error) {
-            console.error('Error fetching rule:', error);
-            return this.handleError(error);
+            this.logger.error('Error fetching rule', error, 'SupabaseService');
+            return null;
         }
     }
 
@@ -97,10 +100,10 @@ export class SupabaseService {
             const isUserAuthenticated = this.isAuthenticated;
             const currentUserId = this.currentUser?.id;
 
-            console.log('Search rules - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
-            if (isUserAuthenticated) {
-                console.log('Current user ID:', currentUserId);
-            }
+            this.logger.debug(
+                `Searching rules with auth state: ${isUserAuthenticated ? 'authenticated' : 'not authenticated'}`,
+                'SupabaseService',
+            );
 
             // Extract parameters with defaults
             const {
@@ -129,7 +132,7 @@ export class SupabaseService {
                 queryBuilder = queryBuilder.or(
                     `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`,
                 );
-                console.log('Including private rules for user:', currentUserId);
+                this.logger.debug('Including private rules for authenticated user', 'SupabaseService');
             } else {
                 // Fallback: only show public rules if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
@@ -151,84 +154,96 @@ export class SupabaseService {
                         tagRuleIds = tagSearchData.map((item) => item.rule_id);
                     }
                 } catch (tagError) {
-                    console.error('Error searching tags:', tagError);
-                    // Continue with main search even if tag search fails
+                    this.logger.error('Error searching tags', tagError, 'SupabaseService');
                 }
 
-                // Search in main table (title, content)
-                // Plus include rules that matched by tag (if any)
+                // Now build the main search query
+                const searchConditions = [];
+
+                // Add title and content search
+                searchConditions.push(`title.ilike.%${query}%`);
+                searchConditions.push(`content.ilike.%${query}%`);
+
+                // Add tag search if we found matching tags
                 if (tagRuleIds.length > 0) {
-                    queryBuilder = queryBuilder.or(
-                        `title.ilike.%${query}%,content.ilike.%${query}%,id.in.(${tagRuleIds.join(',')})`,
-                    );
-                } else {
-                    queryBuilder = queryBuilder.or(`title.ilike.%${query}%,content.ilike.%${query}%`);
+                    searchConditions.push(`id.in.(${tagRuleIds.join(',')})`);
                 }
+
+                // Combine all conditions with OR
+                queryBuilder = queryBuilder.or(searchConditions.join(','));
             }
 
-            // Filter by tool
-            if (tool_id) {
-                queryBuilder = queryBuilder.eq('tool_id', tool_id);
-            }
-
-            // Filter by tags
+            // Filter by tags if provided
             if (tags.length > 0) {
                 queryBuilder = queryBuilder.in('rule_tags.tag_id', tags);
             }
 
-            // Pagination
+            // Filter by tool if provided
+            if (tool_id) {
+                queryBuilder = queryBuilder.eq('tool_id', tool_id);
+            }
+
+            // Paginate the results
             const from = (page - 1) * limit;
-            const to = from + limit - 1;
+            const to = page * limit - 1;
             queryBuilder = queryBuilder.range(from, to);
 
-            const { data, error, count } = await queryBuilder;
+            // Add order by
+            queryBuilder = queryBuilder.order('created_at', { ascending: false });
+
+            // Execute the query
+            const { data, count, error } = await queryBuilder;
 
             if (error) {
-                console.error('Supabase returned error:', error);
+                this.logger.error('Supabase returned error', error, 'SupabaseService');
                 throw error;
             }
 
             return {
-                rules: data ? data.map(this.transformRuleData) : [],
+                rules: data ? data.map((item) => this.transformRuleData(item)) : [],
                 count: count || 0,
             };
         } catch (error) {
-            console.error('Error searching rules:', error);
-            return this.handleError(error);
+            this.logger.error('Error searching rules', error, 'SupabaseService');
+            return { rules: [], count: 0 };
         }
     }
 
     /**
-     * Get available tags
+     * Get all available tags
      */
     public async getTags() {
         try {
-            // Get authentication state
+            // Ensure auth state is up-to-date before proceeding
             const isUserAuthenticated = this.isAuthenticated;
             const currentUserId = this.currentUser?.id;
 
-            console.log('Get tags - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
-            if (isUserAuthenticated) {
-                console.log('Current user ID:', currentUserId);
-            }
+            this.logger.debug(
+                `Fetching tags with auth state: ${isUserAuthenticated ? 'authenticated' : 'not authenticated'}`,
+                'SupabaseService',
+            );
 
-            let queryBuilder = this.client.from('tags').select('*').eq('is_archived', false);
+            let queryBuilder = this.client.from('tags').select('*');
 
-            // Handle private tags with the same logic as rules
+            // Add filter conditions
+            queryBuilder = queryBuilder.eq('is_archived', false);
+
+            // Handle private tags
             if (!isUserAuthenticated) {
                 // Only show public tags
                 queryBuilder = queryBuilder.eq('is_private', false);
             } else if (currentUserId) {
-                // Show both public tags AND private tags created by the current user
+                // Show both public tags AND private tags owned by the current user
                 queryBuilder = queryBuilder.or(
                     `is_private.eq.false, and(is_private.eq.true, created_by.eq.${currentUserId})`,
                 );
-                console.log('Including private tags for user:', currentUserId);
+                this.logger.debug('Including private tags for authenticated user', 'SupabaseService');
             } else {
-                // Fallback: only show public tags
+                // Fallback: only show public tags if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
+            // Execute the query
             const { data, error } = await queryBuilder;
 
             if (error) {
@@ -237,42 +252,46 @@ export class SupabaseService {
 
             return data || [];
         } catch (error) {
-            console.error('Error fetching tags:', error);
-            return this.handleError(error);
+            this.logger.error('Error fetching tags', error, 'SupabaseService');
+            return [];
         }
     }
 
     /**
-     * Get available tools
+     * Get all available tools (AI assistants)
      */
     public async getTools() {
         try {
-            // Get authentication state
+            // Ensure auth state is up-to-date before proceeding
             const isUserAuthenticated = this.isAuthenticated;
             const currentUserId = this.currentUser?.id;
 
-            console.log('Get tools - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
-            if (isUserAuthenticated) {
-                console.log('Current user ID:', currentUserId);
-            }
+            this.logger.debug(
+                `Fetching tools with auth state: ${isUserAuthenticated ? 'authenticated' : 'not authenticated'}`,
+                'SupabaseService',
+            );
 
-            let queryBuilder = this.client.from('tools').select('*').eq('is_archived', false);
+            let queryBuilder = this.client.from('tools').select('*');
 
-            // Handle private tools with the same logic as rules and tags
+            // Add filter conditions
+            queryBuilder = queryBuilder.eq('is_archived', false);
+
+            // Handle private tools
             if (!isUserAuthenticated) {
                 // Only show public tools
                 queryBuilder = queryBuilder.eq('is_private', false);
             } else if (currentUserId) {
-                // Show both public tools AND private tools created by the current user
+                // Show both public tools AND private tools owned by the current user
                 queryBuilder = queryBuilder.or(
                     `is_private.eq.false, and(is_private.eq.true, created_by.eq.${currentUserId})`,
                 );
-                console.log('Including private tools for user:', currentUserId);
+                this.logger.debug('Including private tools for authenticated user', 'SupabaseService');
             } else {
-                // Fallback: only show public tools
+                // Fallback: only show public tools if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
+            // Execute the query
             const { data, error } = await queryBuilder;
 
             if (error) {
@@ -281,8 +300,8 @@ export class SupabaseService {
 
             return data || [];
         } catch (error) {
-            console.error('Error fetching tools:', error);
-            return this.handleError(error);
+            this.logger.error('Error fetching tools', error, 'SupabaseService');
+            return [];
         }
     }
 
@@ -291,24 +310,21 @@ export class SupabaseService {
      */
     public async getTopUpvotedRules(limit: number = 20): Promise<RuleListResponse> {
         try {
-            // Get authentication state
+            // Ensure auth state is up-to-date before proceeding
             const isUserAuthenticated = this.isAuthenticated;
             const currentUserId = this.currentUser?.id;
 
-            console.log('Top upvoted rules - auth state:', isUserAuthenticated ? 'authenticated' : 'not authenticated');
-            if (isUserAuthenticated) {
-                console.log('Current user ID:', currentUserId);
-            }
+            this.logger.debug(
+                `Fetching top upvoted rules with auth state: ${isUserAuthenticated ? 'authenticated' : 'not authenticated'}`,
+                'SupabaseService',
+            );
 
-            let queryBuilder = this.client
-                .from('rules')
-                .select('*, rule_tags!inner(tag_id, tags!inner(*))', { count: 'exact' })
-                .eq('is_archived', false)
-                .eq('is_active', true)
-                .order('upvote_count', { ascending: false })
-                .limit(limit);
+            let queryBuilder = this.client.from('rules').select('*, rule_tags(tag_id, tags(*))', { count: 'exact' });
 
-            // Handle private rules with the same logic as in searchRules
+            // Add filter conditions
+            queryBuilder = queryBuilder.eq('is_archived', false).eq('is_active', true);
+
+            // Handle private rules
             if (!isUserAuthenticated) {
                 // Only show public rules
                 queryBuilder = queryBuilder.eq('is_private', false);
@@ -317,45 +333,55 @@ export class SupabaseService {
                 queryBuilder = queryBuilder.or(
                     `is_private.eq.false, and(is_private.eq.true, author_id.eq.${currentUserId})`,
                 );
-                console.log('Including private rules for user:', currentUserId);
+                this.logger.debug('Including private rules for authenticated user', 'SupabaseService');
             } else {
                 // Fallback: only show public rules if authenticated but no user ID (shouldn't happen)
                 queryBuilder = queryBuilder.eq('is_private', false);
             }
 
-            const { data, error, count } = await queryBuilder;
+            // Order by upvotes and limit
+            queryBuilder = queryBuilder.order('upvote_count', { ascending: false }).limit(limit);
+
+            // Execute the query
+            const { data, count, error } = await queryBuilder;
 
             if (error) {
-                console.error('Supabase returned error:', error);
+                this.logger.error('Supabase returned error', error, 'SupabaseService');
                 throw error;
             }
 
             return {
-                rules: data ? data.map(this.transformRuleData) : [],
+                rules: data ? data.map((item) => this.transformRuleData(item)) : [],
                 count: count || 0,
             };
         } catch (error) {
-            console.error('Error fetching top upvoted rules:', error);
-            return this.handleError(error);
+            this.logger.error('Error fetching top upvoted rules', error, 'SupabaseService');
+            return { rules: [], count: 0 };
         }
     }
 
     /**
-     * Transform rule data from database to application model
+     * Transform raw database data into Rule object
      */
     private transformRuleData(data: any): Rule {
         // Extract tags from rule_tags join
-        const tags = data.rule_tags?.map((rt: any) => rt.tags) || [];
+        const tags = data.rule_tags
+            ? data.rule_tags
+                  .filter((rt: any) => rt.tags)
+                  .map((rt: any) => rt.tags)
+                  .filter(Boolean)
+            : [];
 
-        // Ensure content is never undefined
+        // Extract required fields and ensure content is defined
         if (data.content === undefined) {
-            console.warn(`Rule ${data.id} (${data.title}) has undefined content`);
+            this.logger.warn(`Rule ${data.id} (${data.title}) has undefined content`, 'SupabaseService');
+            data.content = ''; // Provide default value
         }
 
         return {
             id: data.id,
             title: data.title,
-            content: data.content || '', // Provide empty string as fallback
+            content: data.content,
             author_id: data.author_id,
             slug: data.slug,
             created_at: data.created_at,
@@ -363,53 +389,32 @@ export class SupabaseService {
             is_private: data.is_private,
             is_archived: data.is_archived,
             is_active: data.is_active,
-            upvote_count: data.upvote_count || 0,
+            upvote_count: data.upvote_count,
             tool_id: data.tool_id,
             tags,
         };
     }
 
     /**
-     * Handle errors from Supabase API and provide better error messages
+     * Format and throw error
      */
     private handleError(error: any): never {
-        if (error instanceof Error) {
-            // Standard error object
-            throw error;
-        } else if (error && typeof error === 'object') {
-            // Try to extract specific Supabase error information
-            try {
-                const errorObject = error as Record<string, any>;
+        let message: string;
 
-                // Check for Supabase PostgreSQL error format
-                if (errorObject.code && errorObject.message) {
-                    throw new Error(`Database error (${errorObject.code}): ${errorObject.message}`);
-                }
-
-                // Check for Supabase error object format
-                if (errorObject.error && typeof errorObject.error === 'object') {
-                    const supabaseError = errorObject.error as Record<string, any>;
-                    const message = supabaseError.message || 'Unknown error';
-                    const details = supabaseError.details || '';
-                    throw new Error(`Supabase error: ${message}${details ? ` (${details})` : ''}`);
-                }
-
-                // More generic error handling
-                if (errorObject.message) {
-                    throw new Error(`API error: ${errorObject.message}`);
-                }
-
-                // Fallback to JSON stringifying the error
-                throw new Error(`Database error: ${JSON.stringify(error)}`);
-            } catch (formatError) {
-                // If JSON stringify fails or any other error occurs during formatting
-                console.error('Error while formatting error message:', formatError);
-                console.error('Original error:', error);
-                throw new Error(`Database error: ${error.message || 'Unknown error'}`);
+        try {
+            if (error instanceof Error) {
+                message = error.message;
+            } else if (typeof error === 'object' && error !== null) {
+                message = JSON.stringify(error);
+            } else {
+                message = String(error);
             }
-        } else {
-            // Completely generic error
-            throw new Error(`Unknown error occurred: ${String(error)}`);
+        } catch (formatError) {
+            this.logger.error('Error while formatting error message', formatError, 'SupabaseService');
+            this.logger.error('Original error', error, 'SupabaseService');
+            message = 'Unknown error occurred';
         }
+
+        throw new Error(`Supabase API error: ${message}`);
     }
 }
