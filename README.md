@@ -15,6 +15,7 @@ This extension allows you to search, browse, and download rules from [CodingRule
 - **Private Content**: View and manage your private rules with visual indicators (lock icon)
 - **Favorites**: Access your favorite rules organized by collections with star indicators
 - **Download Rules**: Download rules in formats compatible with popular AI coding assistants:
+    - GitHub Copilot (`copilot-instructions.md`)
     - Cline (`.clinerules`)
     - Cursor (`.cursorrules`)
     - Windsurf (`.windsurfrules`)
@@ -25,27 +26,8 @@ This extension allows you to search, browse, and download rules from [CodingRule
 ## Getting Started
 
 1. Install the extension from the VS Code Marketplace
-2. The extension comes pre-configured with Supabase credentials
-
-    > **Note:** If you want to use your own Supabase instance, you have two options:
-    >
-    > **Option 1: Using Environment Variables (Recommended)**
-    >
-    > - Create a `.env` file in the extension root directory (you can copy from `.env.example`)
-    > - Set the following variables:
-    >     ```
-    >     SUPABASE_URL=your-supabase-url
-    >     SUPABASE_ANON_KEY=your-supabase-anon-key
-    >     ```
-    > - Rebuild the extension with `npm run compile`
-    >
-    > **Option 2: Using Settings**
-    >
-    > - Go to Settings > Extensions > CodingRules.ai
-    > - Enter your Supabase URL and Anonymous Key
-
-3. Access the extension from the CodingRules.ai icon in the activity bar
-4. For private content, click "Log in to see private content" in the Rules Explorer
+2. Access the extension from the CodingRules.ai icon in the activity bar
+3. For private content, click "Log in to see private content" in the Rules Explorer
 
 ## Using the Extension
 
@@ -86,6 +68,7 @@ This extension allows you to search, browse, and download rules from [CodingRule
 ### Downloading Rules
 
 1. From the rule details view, click one of the download buttons to choose a format:
+    - GitHub Copilot Rule (`copilot-instructions.md`)
     - Cline Rule (`.clinerules`)
     - Cursor Rule (`.cursorrules`)
     - Windsurf Rule (`.windsurfrules`)
