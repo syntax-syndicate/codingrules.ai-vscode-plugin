@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.7](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.6...v0.4.7) (2025-03-22)
+
+### Features
+
+- add command to copy rule to clipboard with error handling ([0ba9ffe](https://github.com/codingrules-ai/vscode-plugin/commit/0ba9ffe4f85da85ca25118e6cd0b6dfcd481d72f))
+- add environment variable support for Supabase configuration and update documentation ([160cebf](https://github.com/codingrules-ai/vscode-plugin/commit/160cebfdde58f0ebdb77e4a7c686e0693ebfc14a))
+- add external link functionality for author profiles in rule viewer ([a413147](https://github.com/codingrules-ai/vscode-plugin/commit/a413147b061297e88956d2655cd9ebbca937893d))
+- add user profile retrieval ([e279505](https://github.com/codingrules-ai/vscode-plugin/commit/e279505a35c423bb893e1937bcfae2ec2e83c30f))
+- clean-up architecture ([36f0bf6](https://github.com/codingrules-ai/vscode-plugin/commit/36f0bf6d3eaca8bf515259a74d22f05f5ecec53e))
+- consolidate authentication commands ([7262415](https://github.com/codingrules-ai/vscode-plugin/commit/72624154fb83050b4d25b20bceb5b83f67d0c125))
+- enhance rule download options and UI in rule viewer ([803feec](https://github.com/codingrules-ai/vscode-plugin/commit/803feecf5f487c89265f191037b18e1738e566fb))
+- enhance rule downloading process with improved file handling and UI updates ([1890878](https://github.com/codingrules-ai/vscode-plugin/commit/1890878a9d359304024533b039e543e1cb62a753))
+- implement background token refresh and cache invalidation for private rules ([6811836](https://github.com/codingrules-ai/vscode-plugin/commit/681183639712695940337bbb40ecf2c0b0bde296))
+- implement functionality to fetch and display private rules ([e0d24d0](https://github.com/codingrules-ai/vscode-plugin/commit/e0d24d0a527fca43317c399d9a6b0dd58b1dc46f))
+- implement search functionality with QuickPick results and loading indicators ([0c06765](https://github.com/codingrules-ai/vscode-plugin/commit/0c0676535e5b78b70653cfc83b9ebe7af3a1abeb))
+- improve file download handling and user prompts in rule downloader ([1137188](https://github.com/codingrules-ai/vscode-plugin/commit/1137188d90b6e9dc7c2a77b4c83a6aa5c65794c6))
+- refactor extension architecture with command handlers for rules, explorer, and authentication ([474b1d5](https://github.com/codingrules-ai/vscode-plugin/commit/474b1d560a0a7b5ed6e40da3e848bcc90d08a4c4))
+
+### Bug Fixes
+
+- ensure clipboard functionality handles empty rule content and improve event listener setup ([839f128](https://github.com/codingrules-ai/vscode-plugin/commit/839f1281a5bb635ce6e193ca9a8322185cbf018f))
+
+### Refactors
+
+- update Supabase configuration to use hardcoded values, removing user-configurable options ([a3da447](https://github.com/codingrules-ai/vscode-plugin/commit/a3da447e93b35d32eee160cbd06bd4315bf2ea21))
+
 ### [0.4.6](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.5...v0.4.6) (2025-03-22)
 
 ### [0.4.5](https://github.com/codingrules-ai/vscode-plugin/compare/v0.4.4...v0.4.5) (2025-03-22)

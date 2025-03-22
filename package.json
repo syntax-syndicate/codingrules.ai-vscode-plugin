@@ -2,7 +2,7 @@
     "name": "codingrules-ai",
     "displayName": "codingrules.ai",
     "description": "Easily discover, download, and implement coding rules for your projects with codingrules.ai. Standardize your codebase and improve team collaboration with AI-powered rules management.",
-    "version": "0.4.6",
+    "version": "0.4.7",
     "publisher": "codingrulesai",
     "icon": "images/icon.png",
     "pricing": "Free",
