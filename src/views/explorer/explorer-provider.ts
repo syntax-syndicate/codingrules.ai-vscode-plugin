@@ -33,6 +33,10 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
     private isFilterActive = false;
     private filteredRules: Rule[] = [];
 
+    // Favorites-related state
+    private favoriteRules: { [collection: string]: Rule[] } = {};
+    private favoriteCollections: string[] = [];
+
     // Expanded state tracking
     private expandedTags: Set<string> = new Set();
     private expandedTools: Set<string> = new Set();
@@ -169,8 +173,34 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
             if (this.showPrivateContent) {
                 const { rules: privateRules } = await this.ruleService.getPrivateRules(10);
                 this.privateRules = privateRules || [];
+
+                // Load favorite rules
+                try {
+                    this.logger.info('Loading favorites for authenticated user', 'RulesExplorerProvider');
+                    const favorites = await this.ruleService.getFavoriteRules();
+
+                    if (favorites && typeof favorites === 'object') {
+                        this.favoriteRules = favorites;
+                        this.favoriteCollections = Object.keys(favorites).sort();
+
+                        this.logger.info(
+                            `Loaded ${this.favoriteCollections.length} favorite collections`,
+                            'RulesExplorerProvider',
+                        );
+                    } else {
+                        this.logger.warn('getFavoriteRules returned invalid result', 'RulesExplorerProvider');
+                        this.favoriteRules = {};
+                        this.favoriteCollections = [];
+                    }
+                } catch (favError) {
+                    this.logger.error(`Error loading favorites: ${favError}`, 'RulesExplorerProvider');
+                    this.favoriteRules = {};
+                    this.favoriteCollections = [];
+                }
             } else {
                 this.privateRules = [];
+                this.favoriteRules = {};
+                this.favoriteCollections = [];
             }
 
             // Load tags
@@ -280,6 +310,15 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
                 // Add Private Rules section if authenticated
                 if (this.showPrivateContent) {
+                    // Add Favorites section first
+                    const favoritesItem = new RuleExplorerItem(
+                        RuleExplorerItemType.CATEGORY,
+                        'Favorites',
+                        vscode.TreeItemCollapsibleState.Expanded,
+                    );
+                    favoritesItem.iconPath = new vscode.ThemeIcon('star-full');
+                    rootItems.push(favoritesItem);
+
                     const privateRulesItem = new RuleExplorerItem(
                         RuleExplorerItemType.CATEGORY,
                         'Private Rules',
@@ -314,6 +353,51 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
 
         // Render children based on parent type
         switch (element.label) {
+            case 'Favorites':
+                // Add detailed logging for favorites rendering
+                this.logger.info(
+                    `Rendering Favorites children with ${this.favoriteCollections.length} collections`,
+                    'RulesExplorerProvider',
+                );
+
+                // If no collections found, show a message
+                if (this.favoriteCollections.length === 0) {
+                    this.logger.warn('No collections to display in Favorites section', 'RulesExplorerProvider');
+
+                    const noFavItem = new RuleExplorerItem(
+                        RuleExplorerItemType.RULE,
+                        'No favorite rules found',
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+
+                    // Add a helpful message or action
+                    const addFavInfo = new RuleExplorerItem(
+                        RuleExplorerItemType.RULE,
+                        'Star rules on codingrules.ai to add favorites',
+                        vscode.TreeItemCollapsibleState.None,
+                    );
+
+                    addFavInfo.command = {
+                        command: 'vscode.open',
+                        title: 'Open CodingRules.ai',
+                        arguments: [vscode.Uri.parse('https://codingrules.ai')],
+                    };
+
+                    return [noFavItem, addFavInfo];
+                }
+
+                // Show all collections as expandable items
+                return this.favoriteCollections.map((collection) => {
+                    const collectionItem = new RuleExplorerItem(
+                        RuleExplorerItemType.CATEGORY,
+                        collection,
+                        vscode.TreeItemCollapsibleState.Expanded,
+                    );
+                    // Use a filled star icon for all collections
+                    collectionItem.iconPath = new vscode.ThemeIcon('star-full');
+                    return collectionItem;
+                });
+
             case 'Private Rules':
                 if (this.privateRules.length === 0) {
                     return [
@@ -606,8 +690,39 @@ export class RulesExplorerProvider implements vscode.TreeDataProvider<RuleExplor
                     return [...previewItems, showAllItem];
                 }
 
+                // Handle favorite collections
+                if (this.favoriteCollections.includes(element.label)) {
+                    this.logger.info(`Rendering rules for collection '${element.label}'`, 'RulesExplorerProvider');
+                    const collectionRules = this.favoriteRules[element.label] || [];
+
+                    if (collectionRules.length === 0) {
+                        return [
+                            new RuleExplorerItem(
+                                RuleExplorerItemType.RULE,
+                                `No rules in '${element.label}' collection`,
+                                vscode.TreeItemCollapsibleState.None,
+                            ),
+                        ];
+                    }
+
+                    return collectionRules.map((rule) => {
+                        const ruleItem = new RuleExplorerItem(
+                            RuleExplorerItemType.RULE,
+                            rule.title,
+                            vscode.TreeItemCollapsibleState.None,
+                            rule,
+                        );
+                        // Add rule icon to all favorite rules
+                        ruleItem.iconPath = new vscode.ThemeIcon('book');
+                        return ruleItem;
+                    });
+                }
+
                 return [];
         }
+
+        // Add an explicit return statement at the end to satisfy linter
+        return [];
     }
 
     /**

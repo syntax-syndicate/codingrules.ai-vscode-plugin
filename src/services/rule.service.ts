@@ -229,4 +229,16 @@ export class RuleService {
         this.tagPreviewRulesCache.clear();
         this.toolPreviewRulesCache.clear();
     }
+
+    /**
+     * Get favorite rules for the current user, grouped by collection
+     */
+    public async getFavoriteRules(): Promise<{ [collection: string]: Rule[] }> {
+        try {
+            return await this.supabaseService.getFavoriteRules();
+        } catch (error) {
+            this.logger.error('Error fetching favorite rules', error, 'RuleService');
+            return {};
+        }
+    }
 }

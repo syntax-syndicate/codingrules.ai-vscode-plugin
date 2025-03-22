@@ -212,6 +212,11 @@ export class AuthHandler {
                         const supabaseService = SupabaseService.getInstance();
                         supabaseService.invalidatePrivateRulesCache();
                         this.logger.info('Invalidated private rules cache during force refresh', 'AuthHandler');
+
+                        // Step 2b: Explicitly load favorites to ensure they're refreshed
+                        progress.report({ message: 'Loading favorite rules...' });
+                        this.logger.info('Explicitly loading favorites during force refresh', 'AuthHandler');
+                        await supabaseService.getFavoriteRules();
                     } catch (cacheError) {
                         this.logger.warn(`Failed to invalidate cache: ${cacheError}`, 'AuthHandler');
                     }
@@ -221,7 +226,9 @@ export class AuthHandler {
                     await vscode.commands.executeCommand('codingrules-ai.refreshExplorer');
 
                     // Show success message
-                    vscode.window.showInformationMessage(`Successfully refreshed private rules for user ${userId}`);
+                    vscode.window.showInformationMessage(
+                        `Successfully refreshed private rules and favorites for user ${userId}`,
+                    );
                 },
             );
         } catch (error) {

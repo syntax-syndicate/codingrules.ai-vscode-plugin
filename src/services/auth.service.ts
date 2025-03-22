@@ -310,49 +310,65 @@ export class AuthService {
     }
 
     /**
-     * Force token refresh to handle expired tokens
+     * Refresh the session token
      */
     public async refreshToken(): Promise<Session | null> {
         try {
-            // Get current session
-            const session = await this.loadSession();
+            // First try to get the current session from storage
+            const storedSession = await this.loadSession();
 
-            if (!session || !session.refresh_token) {
-                this.logger.warn('No refresh token available to refresh session', 'AuthService');
-                return null;
-            }
+            if (!storedSession || !storedSession.refresh_token) {
+                this.logger.debug('No stored session or refresh token available for refresh', 'AuthService');
 
-            // Check if we need to refresh (refresh if token is older than 50 minutes)
-            const storedAt = (session as any).stored_at || 0;
-            const ageInMs = Date.now() - storedAt;
-            const needsRefresh = ageInMs > 50 * 60 * 1000; // 50 minutes
-
-            if (needsRefresh) {
-                this.logger.info('Token is stale, attempting refresh', 'AuthService');
-
-                // Attempt to refresh the session
-                const { data, error } = await this.client.auth.refreshSession({
-                    refresh_token: session.refresh_token,
-                });
+                // Try to get a new session from the API
+                const { data, error } = await this.client.auth.getSession();
 
                 if (error) {
-                    this.logger.error('Failed to refresh token', error, 'AuthService');
+                    this.logger.error(`Error getting session during refresh: ${error.message}`, 'AuthService');
                     return null;
                 }
 
                 if (data.session) {
-                    // Update the user and save the refreshed session
-                    this._currentUser = data.session.user;
+                    this.logger.debug('Retrieved new session from API during refresh', 'AuthService');
                     await this.saveSession(data.session);
-                    this.logger.info('Token successfully refreshed', 'AuthService');
                     return data.session;
+                } else {
+                    return null;
                 }
-            } else {
-                // Use existing session
-                return session;
             }
 
-            return null;
+            // Use the stored refresh token to get a new session
+            const { data, error } = await this.client.auth.refreshSession({
+                refresh_token: storedSession.refresh_token,
+            });
+
+            if (error) {
+                this.logger.error(`Token refresh failed: ${error.message}`, 'AuthService');
+
+                // If refresh fails, attempt to get a fresh session as fallback
+                const fallbackResult = await this.client.auth.getSession();
+                if (!fallbackResult.error && fallbackResult.data.session) {
+                    this.logger.debug('Used fallback getSession after refresh failure', 'AuthService');
+                    await this.saveSession(fallbackResult.data.session);
+                    return fallbackResult.data.session;
+                }
+
+                return null;
+            }
+
+            if (data && data.session) {
+                this.logger.debug('Token refreshed successfully', 'AuthService');
+
+                // Update the user object
+                this._currentUser = data.user;
+
+                // Save the refreshed session
+                await this.saveSession(data.session);
+
+                return data.session;
+            } else {
+                return storedSession; // Return the existing session as fallback
+            }
         } catch (error) {
             this.logger.error('Error refreshing token', error, 'AuthService');
             return null;

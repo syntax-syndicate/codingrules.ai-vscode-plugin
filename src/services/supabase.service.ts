@@ -72,20 +72,19 @@ export class SupabaseService {
                         refresh_token: freshSession.refresh_token,
                     });
 
-                    this.logger.info('Created new authenticated client with fresh token', 'SupabaseService');
+                    this.logger.debug('Created new authenticated client with fresh token', 'SupabaseService');
                     return authenticatedClient;
                 } catch (clientError) {
                     this.logger.error('Failed to create new client with token', clientError, 'SupabaseService');
                 }
+            } else {
+                this.logger.debug("Token refresh didn't return a valid session, trying fallback", 'SupabaseService');
             }
 
             // Fallback to getting the access token directly if refresh failed
             const accessToken = await this.authService.getAccessToken();
 
             if (accessToken) {
-                // Log that we're using a token for this request
-                this.logger.debug('Using authenticated client with token', 'SupabaseService');
-
                 // Set the access token directly on the client
                 await this.client.auth.setSession({
                     access_token: accessToken,
@@ -95,6 +94,18 @@ export class SupabaseService {
                 return this.client;
             } else {
                 this.logger.warn('No access token available, using unauthenticated client', 'SupabaseService');
+
+                // As a last resort, try to get the current session directly
+                try {
+                    const { data, error } = await this.client.auth.getSession();
+                    if (!error && data.session && data.session.access_token) {
+                        this.logger.debug('Retrieved session directly from API', 'SupabaseService');
+                        return this.client;
+                    }
+                } catch (sessionError) {
+                    this.logger.error('Failed to get session directly', sessionError, 'SupabaseService');
+                }
+
                 return this.client;
             }
         } catch (error) {
@@ -841,6 +852,85 @@ export class SupabaseService {
         }
 
         throw new Error(`Supabase API error: ${message}`);
+    }
+
+    /**
+     * Get favorite rules for the current user, grouped by collection
+     */
+    public async getFavoriteRules(): Promise<{ [collection: string]: Rule[] }> {
+        try {
+            // Ensure user is authenticated
+            if (!this.isAuthenticated || !this.currentUser?.id) {
+                this.logger.warn('getFavoriteRules called but user is not authenticated', 'SupabaseService');
+                return {};
+            }
+
+            const currentUserId = this.currentUser.id;
+            this.logger.info(`Fetching favorite rules for user ${currentUserId}`, 'SupabaseService');
+
+            // Get authenticated client
+            const authClient = await this.getAuthenticatedClient();
+
+            // Query favorites with joined rule data
+            this.logger.debug('Executing Supabase query for favorites with rule data join', 'SupabaseService');
+            const { data, error } = await authClient
+                .from('rule_favorites')
+                .select(
+                    `
+                    id, 
+                    collection,
+                    rule_id,
+                    rules:rule_id (
+                        id, title, content, author_id, slug, created_at, updated_at,
+                        is_private, is_archived, is_active, upvote_count, tool_id,
+                        rule_tags(tag_id, tags(*))
+                    )
+                `,
+                )
+                .eq('user_id', currentUserId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                this.logger.error(
+                    `Supabase returned error fetching favorites: ${JSON.stringify(error)}`,
+                    'SupabaseService',
+                );
+                throw error;
+            }
+
+            // Log raw data for debugging
+            if (data && data.length > 0) {
+                this.logger.debug(`Received ${data.length} favorite entries from database`, 'SupabaseService');
+            } else {
+                this.logger.debug('No favorite rules found in database', 'SupabaseService');
+            }
+
+            // Group favorites by collection
+            const favoritesByCollection: { [collection: string]: Rule[] } = {};
+
+            // Process the results
+            if (data) {
+                for (const favorite of data) {
+                    const collectionName = favorite.collection || 'Default';
+                    const rule = favorite.rules;
+
+                    if (rule) {
+                        if (!favoritesByCollection[collectionName]) {
+                            favoritesByCollection[collectionName] = [];
+                        }
+
+                        favoritesByCollection[collectionName].push(this.transformRuleData(rule));
+                    } else {
+                        this.logger.warn(`Favorite entry has no associated rule data`, 'SupabaseService');
+                    }
+                }
+            }
+
+            return favoritesByCollection;
+        } catch (error) {
+            this.logger.error('Error fetching favorite rules', error, 'SupabaseService');
+            return {};
+        }
     }
 
     /**
