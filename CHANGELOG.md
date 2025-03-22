@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.5](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.4.4...v0.4.5) (2025-03-22)
+
+### Features
+
+- refine URI protocol detection logic for VS Code-based editors ([b97bf3c](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/b97bf3c6210e6eb8408f81d0f427fd73eb7cb23f))
+
+### Refactors
+
+- simplify URI protocol detection by utilizing vscode.env.uriScheme ([04965a1](https://github.com/danielsogl/codingrules.ai-vscode-plugin/commit/04965a143e338d2491426ce48ad6f4c8c6f6263b))
+
 ### [0.4.4](https://github.com/danielsogl/codingrules.ai-vscode-plugin/compare/v0.4.3...v0.4.4) (2025-03-22)
 
 ### Features
