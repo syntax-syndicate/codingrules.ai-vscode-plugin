@@ -33,22 +33,14 @@ export class Config {
 
     /**
      * Get Supabase configuration
-     * Uses bundled config for production or extension settings
+     * Uses hardcoded values that cannot be changed by users
      */
     public getSupabaseConfig(): SupabaseConfig {
-        // Production configuration (values will be set during build)
-        // These are the default values that will be bundled with the extension
-        const BUNDLED_SUPABASE_URL = 'https://snoakzvpwgvzajcwodlx.supabase.co';
-        const BUNDLED_SUPABASE_ANON_KEY =
+        // Hardcoded Supabase configuration values
+        const SUPABASE_URL = 'https://snoakzvpwgvzajcwodlx.supabase.co';
+        const SUPABASE_ANON_KEY =
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNub2FrenZwd2d2emFqY3dvZGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEwMjUwMTUsImV4cCI6MjA1NjYwMTAxNX0.JefVlhljBPWKIZV_u-rNZfRTayJmXUyDc-r-0geBD4U';
 
-        // Check for user-configured values in settings (these override bundled values)
-        const config = vscode.workspace.getConfiguration('codingrules-ai');
-        const url = config.get<string>('supabaseUrl') || BUNDLED_SUPABASE_URL;
-        const anonKey = config.get<string>('supabaseAnonKey') || BUNDLED_SUPABASE_ANON_KEY;
-
-        return { url, anonKey };
+        return { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY };
     }
-
-    // No additional methods needed
 }
