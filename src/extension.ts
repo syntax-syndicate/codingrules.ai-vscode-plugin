@@ -21,10 +21,20 @@ function getEditorProtocol(): string {
         // Convert to lowercase for consistent matching
         const appNameLower = appName.toLowerCase();
 
-        // Handle specific known cases
-        if (appNameLower.includes('vs code insiders')) {
+        // Handle VS Code Insiders with improved detection - handles different naming variations
+        if (appNameLower.includes('insiders') && (appNameLower.includes('code') || appNameLower.includes('vscode'))) {
             return 'vscode-insiders://';
-        } else if (appNameLower.includes('cursor')) {
+        }
+        // Handle VS Code standard edition
+        else if (
+            appNameLower.includes('visual studio code') ||
+            appNameLower === 'code' ||
+            appNameLower.includes('vscode')
+        ) {
+            return 'vscode://';
+        }
+        // Handle other specific known cases
+        else if (appNameLower.includes('cursor')) {
             return 'cursor://';
         } else if (appNameLower.includes('windsurf')) {
             return 'windsurf://';
@@ -32,9 +42,16 @@ function getEditorProtocol(): string {
             return 'codium://';
         }
 
-        // Extract the first word of the app name as a fallback protocol
-        // This handles unknown VS Code-based editors by using their name as the protocol
+        // For debugging purposes, log what would have been used with the old first-word approach
         const firstWord = appNameLower.split(' ')[0].trim();
+
+        // If we see "visual" as the first word and "code" appears in the name, it's likely VS Code
+        if (firstWord === 'visual' && appNameLower.includes('code')) {
+            return 'vscode://';
+        }
+
+        // Fallback: Extract the first word of the app name as a protocol
+        // This handles unknown VS Code-based editors by using their name as the protocol
         if (firstWord && !firstWord.includes('/') && !firstWord.includes('\\')) {
             return `${firstWord}://`;
         }
