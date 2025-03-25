@@ -4,7 +4,7 @@
     "description": "Easily discover, download, and implement coding rules for your projects with codingrules.ai. Standardize your codebase and improve team collaboration with AI-powered rules management.",
     "version": "1.0.3",
     "publisher": "codingrulesai",
-    "icon": "images/icon.png",
+    "icon": "images/logo.png",
     "pricing": "Free",
     "repository": {
         "type": "git",
