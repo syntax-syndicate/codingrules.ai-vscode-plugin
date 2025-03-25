@@ -1,7 +1,7 @@
 # CodingRules.ai VS Code Extension
 
 <div align="center">
-  <img src="images/logo.png" alt="CodingRules.ai Logo" />
+  <img src="images/logo_large.png" alt="CodingRules.ai Logo" />
   <p><strong>Standardize your codebase and improve team collaboration with AI-powered rules management</strong></p>
 </div>
 
