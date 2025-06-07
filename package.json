@@ -155,13 +155,7 @@
         "test": "vscode-test",
         "dev": "npm run compile && code --new-window --extensionDevelopmentPath=${PWD}",
         "test-connection": "tsx src/test-connection.ts",
-        "prepare": "husky install",
-        "release:major": "standard-version --release-as major",
-        "release:minor": "standard-version --release-as minor",
-        "release:patch": "standard-version --release-as patch",
-        "publish:major": "npm run release:major && vsce publish",
-        "publish:minor": "npm run release:minor && vsce publish",
-        "publish:patch": "npm run release:patch && vsce publish"
+        "prepare": "husky install"
     },
     "devDependencies": {
         "@commitlint/cli": "^19.0.3",
@@ -183,7 +177,6 @@
         "npm-run-all2": "^8.0.1",
         "prettier": "3.5.3",
         "sinon": "^20.0.0",
-        "standard-version": "^9.5.0",
         "typescript": "^5.7.3"
     },
     "dependencies": {
